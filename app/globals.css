@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RTL adjustments */
+html[dir="rtl"] .ltr-only {
+  display: none;
+}
+
+html[dir="ltr"] .rtl-only {
+  display: none;
+}
+
+/* Override some Tailwind classes for RTL support */
+html[dir="rtl"] .mr-auto {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+html[dir="rtl"] .ml-auto {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+html[dir="rtl"] .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+html[dir="rtl"] .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* RTL Phone Number Display */
+html[dir="rtl"] .ltr-phone-number {
+  direction: ltr;
+  text-align: right;
+  unicode-bidi: embed;
+}
+
+/* Fix switch element in RTL mode */
+html[dir="rtl"] .data-\[state\=checked\]\:translate-x-5 {
+  --tw-translate-x: -1.25rem;
+}
+
+html[dir="rtl"] .data-\[state\=unchecked\]\:translate-x-0 {
+  --tw-translate-x: 0px;
+}
+
+/* Fix for PageHeader spacing in RTL */
+html[dir="rtl"] .rtl-page-header {
+  padding-right: 0.5rem;
+  padding-left: 1rem;
+}
+
+html[dir="rtl"] .rtl-mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* RTL Switch Fix */
+[dir="rtl"] .switch-wrapper {
+  display: inline-flex;
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .switch-wrapper > div {
+  transform: scaleX(-1);
+}
+
+/* Animation for the scanning page */
+@keyframes scan {
+  0% {
+    top: 0;
+  }
+  50% {
+    top: 100%;
+  }
+  100% {
+    top: 0;
+  }
+}
+
+.animate-scan {
+  animation: scan 2s linear infinite;
+}
