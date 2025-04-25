@@ -1,10 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { PhoneNumber } from "@/components/ui/phone-number"
 import { useLanguage } from "@/context/LanguageContext"
+import { useCodeInput } from "@/hooks/use-code-input"
 
 interface OtpVerificationProps {
   onVerified: () => void
@@ -13,69 +14,29 @@ interface OtpVerificationProps {
 
 export function OtpVerification({ onVerified, phoneNumber }: OtpVerificationProps) {
   const { t, isRTL } = useLanguage()
-  const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [timeLeft, setTimeLeft] = useState(60)
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const { digits, setDigit, handleKeyDown, inputRefs, reset, isComplete, code } = useCodeInput({ length: 6, rtl: isRTL })
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft((prevTime) => (prevTime > 0 ? prevTime - 1 : 0))
+      setTimeLeft((prevTime: number) => (prevTime > 0 ? prevTime - 1 : 0))
     }, 1000)
 
     return () => clearInterval(timer)
   }, [])
 
-  const handleChange = (index: number, value: string) => {
-    if (value.length > 1) {
-      value = value.charAt(0)
-    }
-
-    const newOtp = [...otp]
-    newOtp[index] = value
-    setOtp(newOtp)
-
-    // Move to next input if current one is filled
-    if (value) {
-      const nextIndex = isRTL ? index - 1 : index + 1
-      if (isRTL ? nextIndex >= 0 : nextIndex < 6) {
-        inputRefs.current[nextIndex]?.focus()
-      }
-    }
-  }
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Move to previous input on backspace if current is empty
-    if (e.key === "Backspace" && !otp[index]) {
-      const prevIndex = isRTL ? index + 1 : index - 1
-      if (isRTL ? prevIndex < 6 : prevIndex >= 0) {
-        inputRefs.current[prevIndex]?.focus()
-      }
-    }
-    // Optional: Arrow key navigation
-    if (e.key === "ArrowLeft") {
-      const nextIndex = isRTL ? index + 1 : index - 1
-      if (isRTL ? nextIndex < 6 : nextIndex >= 0) {
-        inputRefs.current[nextIndex]?.focus()
-      }
-    }
-    if (e.key === "ArrowRight") {
-      const nextIndex = isRTL ? index - 1 : index + 1
-      if (isRTL ? nextIndex >= 0 : nextIndex < 6) {
-        inputRefs.current[nextIndex]?.focus()
-      }
-    }
-  }
+  const handleChange = setDigit
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (otp.every((digit) => digit)) {
+    if (isComplete) {
       onVerified()
     }
   }
 
   const handleResend = () => {
     // Reset OTP fields
-    setOtp(["", "", "", "", "", ""])
+    reset()
     // Reset timer
     setTimeLeft(60)
     // Focus first input
@@ -84,7 +45,7 @@ export function OtpVerification({ onVerified, phoneNumber }: OtpVerificationProp
 
   // Use a single render function for the inputs that handles RTL order
   const renderInputs = () => {
-    const inputs = otp.map((digit, index) => (
+    const inputs = digits.map((digit: string, index: number) => (
       <input
         key={index}
         ref={(el) => (inputRefs.current[index] = el)}
@@ -103,7 +64,7 @@ export function OtpVerification({ onVerified, phoneNumber }: OtpVerificationProp
       />
     ))
 
-    return  inputs
+    return inputs
   }
 
   return (
@@ -120,7 +81,7 @@ export function OtpVerification({ onVerified, phoneNumber }: OtpVerificationProp
         <Button
           type="submit"
           className="w-full bg-gradient-to-r from-violet-600 to-blue-600 py-6"
-          disabled={!otp.every((digit) => digit)}
+          disabled={!isComplete}
         >
           {t("common.continue")}
         </Button>

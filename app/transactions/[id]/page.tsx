@@ -5,7 +5,7 @@ import { use } from "react";
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext";
 import { PageContainer } from "@/components/ui/page-container"
 import { ButtonPrimary } from "@/components/ui/button-primary"
 import { ShareButton } from "@/components/share-button"
@@ -16,7 +16,7 @@ import type { Transaction } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { getTransaction, formatDate } = useApp()
+  const { getTransaction, formatDate } = useData()
   const { t } = useLanguage()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -26,9 +26,9 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
     const fetchTransaction = async () => {
       setIsLoading(true)
       // First try to get from context (for immediate display)
-      const tx = getTransaction(id)
-      if (tx) {
-        setTransaction(tx)
+      const txFromContext = await getTransaction(id) // Await the promise
+      if (txFromContext) {
+        setTransaction(txFromContext) // Set the resolved transaction or null/undefined
         setIsLoading(false)
         return
       }

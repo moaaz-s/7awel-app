@@ -1,11 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { useApp } from "@/context/AppContext"
+import { loadPlatform } from "@/platform"
+import { useData } from "@/context/DataContext";
+import type { QRData } from "@/types"; // Import QRData type
 import { CopyButton } from "@/components/copy-button"
 import { QRCodeDisplay } from "@/components/qr-code-display"
 import { PageContainer } from "@/components/ui/page-container"
 import { ButtonPrimary } from "@/components/ui/button-primary"
+import { ShareButton } from "@/components/share-button"
 import { spacing, typography } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
 
@@ -31,12 +34,22 @@ const ShareIcon = () => (
 )
 
 export default function ReceivePage() {
-  const { user, generatePaymentQR } = useApp()
+  const { user } = useData() // Get user from DataContext
   const { t } = useLanguage()
-  const [qrData] = useState(() => generatePaymentQR())
+  // Replicate QR data generation logic
+  const [qrData] = useState(() => {
+    if (!user) return { qrString: "", data: null }; // Handle user being null initially
+    const qrPayload: QRData = {
+      userId: user.id,
+      // No amount/reference for default receive QR
+      timestamp: Date.now(),
+    };
+    const qrString = JSON.stringify(qrPayload);
+    return { qrString, data: qrPayload };
+  })
 
-  // Generate a PayFlow ID from the user's name
-  const payflowId = user?.name.toLowerCase().replace(/\s+/g, ".") + "@payflow"
+  // Generate a PayFlow ID from first/last name
+  const payflowId = user ? `${user.firstName}.${user.lastName}`.toLowerCase() + "@payflow" : "user@payflow"
 
   // Generate a payment link
   const paymentLink = `https://payflow.app/pay/${payflowId}`
@@ -58,24 +71,14 @@ export default function ReceivePage() {
         </div>
 
         <div className={`pt-4 ${spacing.stack}`}>
-          <ButtonPrimary
+          <ShareButton
             fullWidth
-            icon={<ShareIcon />}
-            onClick={async () => {
-              if (navigator.share) {
-                await navigator.share({
-                  title: t("qr.sharePaymentLink"),
-                  text: t("qr.defaultShareText", { link: paymentLink }),
-                  url: paymentLink,
-                })
-              } else {
-                await navigator.clipboard.writeText(paymentLink)
-                alert(t("qr.copiedToClipboard"))
-              }
-            }}
+            url={paymentLink}
+            title={t("qr.sharePaymentLink")}
+            text={t("qr.defaultShareText", { link: paymentLink })}
           >
             {t("qr.sharePaymentLink")}
-          </ButtonPrimary>
+          </ShareButton>
           <ButtonPrimary variant="outline" fullWidth href="/request">
             {t("qr.requestAmount")}
           </ButtonPrimary>

@@ -13,7 +13,7 @@ import {
   SignOutIcon,
   UserIcon,
 } from "@/components/icons"
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext";
 import { ContactCard } from "@/components/contact-card"
 import { PhoneNumber } from "@/components/ui/phone-number"
 import { ProfileSection } from "@/components/profile/profile-section"
@@ -21,7 +21,7 @@ import { ProfileLinkItem } from "@/components/profile/profile-link-item"
 
 export default function ProfilePage() {
   const { t, isRTL } = useLanguage()
-  const { user } = useApp()
+  const { user } = useData()
 
   const menuItems = [
     {

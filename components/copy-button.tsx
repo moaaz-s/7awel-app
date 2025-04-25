@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CopyIcon, CheckIcon } from "@/components/icons"
+import { loadPlatform } from "@/platform"
+import { toast } from "@/components/ui/use-toast"
+import { useLanguage } from "@/context/LanguageContext"
 
 interface CopyButtonProps {
   value: string
@@ -11,11 +14,19 @@ interface CopyButtonProps {
 
 export function CopyButton({ value, className = "" }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
+  const { t } = useLanguage()
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(value)
+      const platform = await loadPlatform()
+      const ok = await platform.copyText(value)
+      if (!ok) throw new Error("copy failed")
       setCopied(true)
+
+      toast({
+        title: t("common.copied"),
+        description: t("common.copiedDescription"),
+      })
 
       // Reset after 2 seconds
       setTimeout(() => {
@@ -23,6 +34,11 @@ export function CopyButton({ value, className = "" }: CopyButtonProps) {
       }, 2000)
     } catch (err) {
       console.error("Failed to copy text: ", err)
+      toast({
+        title: t("error.copyFailedTitle"),
+        description: t("error.copyFailedDescription"),
+        variant: "destructive",
+      })
     }
   }
 

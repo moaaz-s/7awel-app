@@ -1,34 +1,27 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from 'sonner';
+import { PinEntry } from '@/components/pin-entry';
 
 export default function PinEntryScreen() {
   const { validatePin, isLoading } = useAuth();
   const { t } = useLanguage();
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [entryKey, setEntryKey] = React.useState(0);
 
-  const handlePinSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleComplete = async (pin: string) => {
     setError(null);
-    if (pin.length !== 4) { // Example: Enforce PIN length
-      setError(t('pinEntry.errorLength')); // Need to add this key
-      return;
-    }
-
     const isValid = await validatePin(pin);
-
     if (!isValid) {
-      setError(t('pinEntry.errorInvalid')); // Need to add this key
+      setError(t('pinEntry.errorInvalid'));
       toast.error(t('pinEntry.errorInvalid'));
-      setPin(''); // Clear input on invalid PIN
+      // Reset the PinEntry by changing its key
+      setEntryKey(prev => prev + 1);
     }
-    // On valid PIN, the AuthContext state changes and AppInitializer redirects
+    // On valid PIN, validatePin will update auth state and AppInitializer will redirect automatically.
   };
 
   return (
@@ -38,23 +31,16 @@ export default function PinEntryScreen() {
           <h1 className="text-2xl font-bold">{t('pinEntry.title')}</h1> 
           <p className="text-muted-foreground">{t('pinEntry.description')}</p>
         </div>
-        <form onSubmit={handlePinSubmit} className="space-y-4">
-          <Input
-            type="password" // Use password type to obscure input
-            placeholder={t('pinEntry.placeholder')}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} // Allow only digits, max 4
-            maxLength={4}
-            inputMode="numeric"
-            className="text-center text-2xl tracking-[0.5em]"
-            aria-label={t('pinEntry.title')}
-          />
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isLoading || pin.length !== 4} variant="gradient">
-            {isLoading ? t('common.loading') : t('pinEntry.submit')}
-          </Button>
-        </form>
-         {/* TODO: Add 'Forgot PIN?' and 'Use Biometrics' options later */}
+
+        <div className="flex justify-center">
+          <PinEntry onComplete={handleComplete} key={entryKey} />
+        </div>
+
+        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+
+        {isLoading && (
+          <p className="text-center text-muted-foreground">{t('common.loading')}...</p>
+        )}
       </div>
     </div>
   );

@@ -7,9 +7,9 @@ import { LanguageProvider } from "@/context/LanguageContext"
 import { Suspense } from "react"
 import InnerLayout from './InnerLayout';
 import { AuthProvider } from "@/context/AuthContext";
+import { DataProvider } from "@/context/DataContext";
 import AppInitializer from "@/components/auth/AppInitializer";
-import { AppProvider } from "@/context/AppContext"; // Assuming this is where AppProvider is imported from
-import { ProfileSettingsProvider } from "@/context/ProfileSettingsContext"; // Assuming this is where ProfileSettingsProvider is imported from
+import { ProfileSettingsProvider } from "@/context/ProfileSettingsContext"; 
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -39,8 +39,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <LanguageProvider>
             <AuthProvider>
-              {/* Providers now wrap AppInitializer */}
-              <AppProvider>
+              <DataProvider>
                 <ProfileSettingsProvider>
                   <AppInitializer>
                     <Suspense fallback={<LoadingFallback />}>
@@ -48,7 +47,7 @@ export default function RootLayout({
                     </Suspense>
                   </AppInitializer>
                 </ProfileSettingsProvider>
-              </AppProvider>
+              </DataProvider>
             </AuthProvider>
           </LanguageProvider>
         </ThemeProvider>

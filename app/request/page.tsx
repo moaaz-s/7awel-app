@@ -1,6 +1,6 @@
 "use client"
 
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext";
 import { QRCodeDisplay } from "@/components/qr-code-display"
 import { CopyButton } from "@/components/copy-button"
 import { PageContainer } from "@/components/ui/page-container"
@@ -14,12 +14,12 @@ import { useLanguage } from "@/context/LanguageContext"
 
 export default function RequestPage() {
   const { t } = useLanguage()
-  const { user } = useApp()
+  const { user } = useData()
   const { amount, requestGenerated, qrData, handleAmountSubmit } = useRequestMoneyFlow()
 
   // Generate a payment request link
   const paymentRequestLink = qrData
-    ? `https://payflow.app/pay/${user?.name.toLowerCase().replace(/\s+/g, ".")}?amount=${amount}`
+    ? `https://payflow.app/pay/${(user?.firstName + "." + user?.lastName).toLowerCase()}?amount=${amount}`
     : ""
 
   return (

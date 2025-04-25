@@ -15,7 +15,7 @@ import { useLanguage } from "@/context/LanguageContext"
 import { PhoneNumber } from "@/components/ui/phone-number"
 import { ProfileSection } from "@/components/profile/profile-section"
 import { Form, FormField } from "@/components/ui/form"
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext"
 import type { User } from "@/types" // Import User type
 
 // Schema remains the same
@@ -37,7 +37,7 @@ const getInitials = (firstName?: string, lastName?: string): string => {
 export default function PersonalInfoPage() {
   const [phone, setPhone] = useState("")
   const { t } = useLanguage()
-  const { user, updateUser } = useApp()
+  const { user, updateUser } = useData()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

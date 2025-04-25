@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 export default function ChangePinScreen() {
   const { t } = useLanguage();
   const router = useRouter();
-  const { validatePin, setPin } = useAuth();
+  const { checkPin, setPin } = useAuth();
 
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -27,7 +27,7 @@ export default function ChangePinScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const isValid = await validatePin(pin);
+      const isValid = await checkPin(pin);
       if (isValid) {
         setStep(1);
       } else {

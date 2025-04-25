@@ -1,7 +1,6 @@
 "use client"
 
 import React, { createContext, useContext, useState, useCallback } from "react"
-import { useApp } from "@/context/AppContext"
 import { toast } from "sonner"
 import { useLanguage } from "@/context/LanguageContext"
 
@@ -30,7 +29,6 @@ interface ProfileSettingsContextType {
 const ProfileSettingsContext = createContext<ProfileSettingsContextType | undefined>(undefined)
 
 export function ProfileSettingsProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useApp()
   const { t } = useLanguage()
 
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useBiometrics } from "@/hooks/use-biometrics"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/context/LanguageContext"
 import { FingerprintIcon } from "@/components/icons"
@@ -19,6 +20,7 @@ export function PinEntry({
   onForgotPin,
 }: PinEntryProps) {
   const { t, isRTL } = useLanguage()
+  const { available: bioAvailable, authenticate } = useBiometrics()
   const [pin, setPin] = useState<string[]>([])
   const [error, setError] = useState("")
 
@@ -56,7 +58,8 @@ export function PinEntry({
   }
 
   return (
-    <div className="space-y-6 w-full">
+    // dir=ltr is intentionql since the numbers are in english regardless of the language
+    <div className="space-y-6 w-full" dir="ltr">
       {/* 
       <div className="space-y-2 text-center">
         <h2 className="text-lg font-medium">{t("auth.enterPin")}</h2>
@@ -104,9 +107,18 @@ export function PinEntry({
       </div>
 
       {/* Biometric option */}
-      {showBiometric && (
+      {showBiometric && bioAvailable && (
         <div className="text-center">
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={async () => {
+              const ok = await authenticate("Authenticate to unlock")
+              if (ok) {
+                onComplete("bio")
+              }
+            }}
+          >
             <FingerprintIcon className="h-5 w-5" />
             <span>{t("auth.useFingerprint")}</span>
           </Button>

@@ -1,7 +1,13 @@
 "use client";
 
-import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode, useRef } from 'react';
 import * as storage from '@/utils/storage';
+import { hashPin, verifyPin } from '@/utils/pin-hash';
+import { apiService } from '@/services/api-service';
+import { getItem as getSecureItem, setItem as setSecureItem, removeItem as removeSecureItem } from '@/utils/secure-storage';
+
+// Key for storing the auth token
+const AUTH_TOKEN_KEY = "auth_token";
 
 // Simplified Auth State
 type AuthState = 'pending' | 'unauthenticated' | 'requires_pin' | 'authenticated';
@@ -11,10 +17,12 @@ interface AuthContextType {
   isLoading: boolean; // General loading state for async operations
   checkAuthStatus: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
-  signin: (/* credentials */) => Promise<void>; // Placeholder
+  signin: (phone: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   signup: (/* details */) => Promise<void>; // Placeholder
   setPin: (pin: string) => Promise<void>;
   validatePin: (pin: string) => Promise<boolean>;
+  checkPin: (pin: string) => Promise<boolean>; // new: validate without altering auth state
   logout: () => Promise<void>;
   // Add a way to check onboarding status explicitly if needed outside of initial check
   getOnboardingStatus: () => Promise<boolean>;
@@ -30,22 +38,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [authState, setAuthState] = useState<AuthState>('pending');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Max wrong PIN attempts before we deny further attempts in this session
+  const MAX_PIN_ATTEMPTS = 5;
+  const LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
   const checkAuthStatus = useCallback(async () => {
     console.log("Checking auth status...");
     setIsLoading(true);
     setAuthState('pending'); // Start in pending state
     try {
+      const authToken = await getSecureItem(AUTH_TOKEN_KEY); // <-- Check for token first
       const pinHash = await storage.getPinHash();
+      const sessionActive = await storage.getSessionActive();
 
-      // TODO: Add actual session validation logic here (e.g., check token)
-      // For now, we only check if a PIN exists.
-
-      if (pinHash) {
-        console.log("PIN hash found, requires PIN validation.");
+      if (authToken) { // <-- If token exists, assume authenticated (pending API validation)
+        console.log("Auth token found, setting state to authenticated.");
+        apiService.setToken(authToken); // <-- Set token in API service
+        setAuthState('authenticated');
+      } else if (pinHash && sessionActive) {
+        console.log("Active session detected (no token) – requires PIN."); // Or could be authenticated if session implies it
+        setAuthState('requires_pin'); // Let's require PIN if session is active but no token
+      } else if (pinHash) {
+        console.log("PIN hash found (no token), requires PIN validation.");
         setAuthState('requires_pin');
       } else {
          // No PIN means unauthenticated (onboarding status doesn't dictate auth state directly)
-        console.log("No PIN hash, setting state to unauthenticated.");
+        console.log("No PIN hash or token, setting state to unauthenticated.");
         setAuthState('unauthenticated');
       }
     } catch (error) {
@@ -85,28 +103,60 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return await storage.getHasCompletedOnboarding();
   }, []);
 
-  const signin = useCallback(async (/* credentials */) => {
-    console.log("Simulating Sign In...");
+  const signin = useCallback(async (phone: string): Promise<{ success: boolean; error?: string }> => {
+    console.log(`Attempting Sign In for ${phone}...`);
     setIsLoading(true);
-    // Simulate API Call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // Assume sign-in is successful and PIN is required next
-    // In a real app, API would confirm if PIN setup is needed or directly authenticate
-
-    // Check if PIN exists to determine next state
-    const pinHash = await storage.getPinHash();
-    if (pinHash) {
-        setAuthState('requires_pin');
-        console.log("Sign In successful (simulated), requires PIN.");
-    } else {
-        // If no PIN exists after sign-in, maybe they need to set one?
-        // Or maybe sign-in failed conceptually. Let's assume success means requires_pin for now.
-        // This logic needs refinement based on actual API flow.
-        setAuthState('requires_pin'); // Or navigate to set PIN screen
-        console.log("Sign In successful (simulated), requires PIN (assuming PIN exists or needs setup).");
+    try {
+      const response = await apiService.login(phone);
+      if (response.success && response.data.requiresOtp) {
+        console.log("Sign In successful, OTP required.");
+        // Don't change auth state yet, wait for OTP verification
+        setIsLoading(false);
+        return { success: true }; // Indicate success, UI should prompt for OTP
+      } else {
+        // Handle case where login might directly succeed or fail without OTP (if API supports)
+        console.log("Sign In failed or unexpected response.");
+        setIsLoading(false);
+        return { success: false, error: response.error || "Login failed." };
+      }
+    } catch (error: any) {
+      console.error("Sign In error:", error);
+      setIsLoading(false);
+      return { success: false, error: error.message || "An unexpected error occurred." };
     }
+  }, []);
 
-    setIsLoading(false);
+  const verifyOtp = useCallback(async (phone: string, otp: string): Promise<{ success: boolean; error?: string }> => {
+    console.log(`Verifying OTP for ${phone}...`);
+    setIsLoading(true);
+    try {
+      const response = await apiService.verifyOtp(phone, otp);
+      if (response.success && response.data.token) {
+        console.log("OTP Verification successful, token received.");
+        await setSecureItem(AUTH_TOKEN_KEY, response.data.token);
+        apiService.setToken(response.data.token);
+        // Check if PIN needs to be set or validated
+        const pinHash = await storage.getPinHash();
+        if (pinHash) {
+            setAuthState('requires_pin');
+            console.log("OTP verified, requires PIN.");
+        } else {
+            // Should navigate to set PIN screen
+            setAuthState('unauthenticated'); // Stay unauthenticated until PIN is set
+            console.log("OTP verified, needs PIN setup.");
+        }
+        setIsLoading(false);
+        return { success: true };
+      } else {
+        console.log("OTP Verification failed.");
+        setIsLoading(false);
+        return { success: false, error: response.error || "Invalid OTP." };
+      }
+    } catch (error: any) {
+      console.error("OTP Verification error:", error);
+      setIsLoading(false);
+      return { success: false, error: error.message || "An unexpected error occurred." };
+    }
   }, []);
 
   const signup = useCallback(async (/* userData */) => {
@@ -128,9 +178,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     console.log("Setting PIN...");
     setIsLoading(true);
     try {
-      // Simulate hashing and saving PIN
-      const dummyHash = `dummy-hash-${pin}`;
-      await storage.setPinHash(dummyHash);
+      const hashed = await hashPin(pin);
+      await storage.setPinHash(hashed);
       setAuthState('authenticated'); // Setting PIN leads to authenticated state
       console.log("PIN set successfully, state is now authenticated.");
       // Redirect handled by AppInitializer based on new state
@@ -142,28 +191,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const validatePin = useCallback(async (pin: string): Promise<boolean> => { // <<< MODIFIED FOR TESTING
-    console.log("Validating PIN...");
+  const validatePin = useCallback(async (pin: string): Promise<boolean> => {
     setIsLoading(true);
     try {
+      // Check if locked out
+      const lockedUntil = await storage.getPinLockUntil();
+      if (lockedUntil && Date.now() < lockedUntil) {
+        console.warn("PIN entry locked until", new Date(lockedUntil));
+        setIsLoading(false);
+        return false;
+      }
       // --- TEST MODE --- Allow '1234' for easy testing
       if (pin === '1234') {
           console.warn("AuthContext: Test PIN '1234' used for validation.");
           setAuthState('authenticated'); // Assume success for test PIN
+          await storage.setSessionActive();
           setIsLoading(false);
+          await storage.resetPinAttempts();
           return true;
       }
       // --- END TEST MODE ---
       const storedHash = await storage.getPinHash();
-      const inputHash = `dummy-hash-${pin}`; // Simulate hashing input
+      console.log('[AuthContext] Validating PIN:', { enteredPin: pin, retrievedHash: storedHash }); // <-- Log PIN and hash
 
-      if (storedHash && storedHash === inputHash) {
-        console.log("PIN validation successful.");
+      if (storedHash && await verifyPin(pin, storedHash)) {
+        console.log("[AuthContext] PIN validation successful.");
         setAuthState('authenticated');
+        await storage.setSessionActive();
         setIsLoading(false);
+        await storage.resetPinAttempts();
         return true;
       } else {
         console.log("PIN validation failed.");
+        const attempts = await storage.incrementPinAttempts();
+        if (attempts >= MAX_PIN_ATTEMPTS) {
+          await storage.setPinLockUntil(Date.now() + LOCK_DURATION_MS);
+          await storage.resetPinAttempts();
+          console.warn("Too many attempts - locked for", LOCK_DURATION_MS / 1000, "seconds");
+        }
         setIsLoading(false);
         return false;
       }
@@ -174,19 +239,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  // Check PIN without mutating authState (used in change PIN flow)
+  const checkPin = useCallback(async (pin: string): Promise<boolean> => {
+    try {
+      // Allow test PIN as above
+      if (pin === "1234") {
+        return true;
+      }
+      const storedHash = await storage.getPinHash();
+      return storedHash ? await verifyPin(pin, storedHash) : false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
-    console.log("Logging out...");
+    console.log("[AuthContext] logout called"); // Log call
     setIsLoading(true);
     try {
-      await storage.clearAll(); // Clear PIN hash and onboarding status
+      // Optional: Call API logout endpoint if it exists
+      // await apiService.logout(); 
+
+      await removeSecureItem(AUTH_TOKEN_KEY); // <-- Clear token
+      apiService.clearToken(); // <-- Use clearToken method
+      await storage.clearSessionActive(); // <-- Clear session flag
+      await storage.clearPinHash(); // Consider if PIN should be cleared on logout
       setAuthState('unauthenticated');
-      console.log("Logout complete, state set to unauthenticated.");
+      console.log("Logout successful.");
     } catch (error) {
-      console.error("Error logging out:", error);
-      // Handle error state appropriately? Maybe still force unauthenticated state.
-       setAuthState('unauthenticated');
+      console.error("Logout error:", error);
+      // Still try to set state to unauthenticated even if clearing storage fails
+      setAuthState('unauthenticated');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -197,9 +282,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     completeOnboarding,
     getOnboardingStatus, // Expose the function
     signin,
+    verifyOtp,
     signup,
     setPin,
     validatePin,
+    checkPin,
     logout,
   };
 

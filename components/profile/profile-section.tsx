@@ -1,25 +1,15 @@
 "use client"
 
-import React from "react"
+import type React from "react"
+import { SectionCard } from "../section-card"
 
-interface ProfileSectionProps {
-  title: string
+export interface ProfileSectionProps {
+  title?: string | React.ReactNode
   children: React.ReactNode
+  className?: string
 }
 
-export function ProfileSection({ title, children }: ProfileSectionProps) {
-  return (
-    <div className="bg-white rounded-lg border overflow-hidden">
-      {
-        title && (
-          <div className="p-4 border-b">
-            <h2 className="font-medium">{title}</h2>
-          </div>
-        )
-      }
-      <div className="divide-y">
-        {children}
-      </div>
-    </div>
-  )
+// Backwards-compatible wrapper around the new generic SectionCard
+export function ProfileSection(props: ProfileSectionProps) {
+  return <SectionCard {...props} />
 }

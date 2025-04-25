@@ -3,9 +3,11 @@
 import type React from "react"
 
 import { useState } from "react"
+import { loadPlatform } from "@/platform"
 import { ButtonPrimary } from "@/components/ui/button-primary"
 import { ShareIcon } from "@/components/icons"
 import { toast } from "@/components/ui/use-toast"
+import { useLanguage } from "@/context/LanguageContext"
 
 interface ShareButtonProps {
   title?: string
@@ -57,40 +59,32 @@ export function ShareButton({
   ...rest // Pass through any additional props for ButtonPrimary
 }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false)
+  const { t } = useLanguage()
 
   const handleShare = async () => {
     setIsSharing(true)
 
     try {
-      // Use the Web Share API if available
-      if (navigator.share) {
-        await navigator.share({
-          title,
-          text,
-          url: url || window.location.href,
-        })
+      // Use abstracted platform share
+      const platform = await loadPlatform()
+      const success = await platform.share({
+        title,
+        text,
+        url: url || window.location.href,
+      })
 
-        if (onShareSuccess) {
-          onShareSuccess()
-        }
-
+      if (success) {
         toast({
-          title: "Shared successfully",
-          description: "Content has been shared",
+          title: t("share.successTitle"),
+          description: t("share.successDescription"),
         })
+        onShareSuccess?.()
       } else {
-        // Fallback for browsers that don't support the Web Share API
-        // Copy to clipboard
-        await navigator.clipboard.writeText(url || window.location.href)
-
         toast({
-          title: "Link copied to clipboard",
-          description: "You can now paste and share it",
+          title: t("share.failTitle"),
+          description: t("share.failDescription"),
+          variant: "destructive",
         })
-
-        if (onShareSuccess) {
-          onShareSuccess()
-        }
       }
     } catch (error) {
       console.error("Error sharing:", error)
@@ -100,8 +94,8 @@ export function ShareButton({
       }
 
       toast({
-        title: "Sharing failed",
-        description: "There was an error sharing the content",
+        title: t("share.failTitle"),
+        description: t("share.failDescription"),
         variant: "destructive",
       })
     } finally {

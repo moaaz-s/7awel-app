@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { TransactionCard } from "@/components/ui/transaction-card"
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext"
 import { PageContainer } from "@/components/ui/page-container"
 import { spacing, typography } from "@/components/ui-config"
 import { SearchInput } from "@/components/ui/search-input"
@@ -30,7 +30,7 @@ function TransactionGroupComponent({ group }: { group: TransactionGroup }) {
 }
 
 export default function TransactionsPage() {
-  const { transactions, formatDate } = useApp()
+  const { transactions, formatDate } = useData()
   const { t } = useLanguage()
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)

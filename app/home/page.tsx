@@ -4,7 +4,7 @@ import type React from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useApp } from "@/context/AppContext"
+import { useData } from "@/context/DataContext"
 import { TransactionCard } from "@/components/ui/transaction-card"
 import { patterns, spacing } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
@@ -53,7 +53,7 @@ function NavButton({
 
 export default function HomePage() {
   // Use the app context
-  const { user, balance, transactions, formatCurrency, formatDate } = useApp()
+  const { user, balance, transactions, formatCurrency, formatDate } = useData()
   const { t } = useLanguage()
 
   // Determine display name with a simple fallback for the welcome message
@@ -84,7 +84,9 @@ export default function HomePage() {
         {/* Balance Section - Large and Centered */}
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
           <p className="text-sm text-white/80 mb-2">{t("home.availableBalance")}</p>
-          <h2 className="text-5xl font-bold text-white mb-8">{formatCurrency(balance)}</h2>
+          {/* Pass the numerical amount from balance, defaulting to 0 if null */}
+          {/* Use 'available' property from WalletBalance type */} 
+          <h2 className="text-5xl font-bold text-white mb-8">{formatCurrency(balance?.available ?? 0)}</h2>
 
           {/* Quick Actions - Horizontal Row with only 3 actions - BIGGER ICONS */}
           <div className="grid grid-cols-3 gap-8 mt-4 w-full max-w-xs">

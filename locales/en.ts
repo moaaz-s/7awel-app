@@ -26,6 +26,9 @@ export const en = {
     cantChangePhone: "Phone number cannot be changed. Contact support for assistance.",
     preferences: "Preferences",
     support: "Support",
+    offline: "You are offline",
+    copied: "Copied!",
+    copiedDescription: "Text copied to clipboard",
   },
   auth: {
     signIn: "Sign In",
@@ -128,6 +131,13 @@ export const en = {
     positionQr: "Position the QR code within the frame",
     scanToPay: "Scan to Pay",
   },
+  pinEntry: {
+    title: "Enter PIN",
+    description: "Unlock your wallet with your 4-digit PIN",
+    submit: "Unlock",
+    errorInvalid: "Incorrect PIN. Please try again.",
+    errorLength: "Please enter a 4-digit PIN",
+  },
   error: {
     somethingWrong: "Something went wrong",
     tryAgain: "Please try again",
@@ -135,6 +145,8 @@ export const en = {
     invalidAmount: "Please enter a valid amount.",
     transactionFailed: "Transaction failed. Please try again later.",
     pinsDontMatch: "PINs don't match. Please try again.",
+    copyFailedTitle: "Copy failed",
+    copyFailedDescription: "Unable to copy text",
   },
   onboarding: {
     sendMoney: "Send Money Instantly",
@@ -284,5 +296,11 @@ export const en = {
     amountPositive: "Amount must be positive.",
     insufficientFunds: "Insufficient funds.",
     noteTooLong: "Note cannot exceed {maxLength} characters."
-  }
+  },
+  share: {
+    successTitle: "Shared successfully",
+    successDescription: "Content has been shared",
+    failTitle: "Share failed",
+    failDescription: "Unable to share content",
+  },
 }

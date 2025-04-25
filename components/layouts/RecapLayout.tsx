@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 interface RecapLayoutProps {
   children: ReactNode
   title: string
-  backHref: string
+  backHref?: string
   confirmText: string
   onConfirm: () => void
   isLoading?: boolean

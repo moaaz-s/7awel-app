@@ -27,8 +27,9 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     if (authState === 'pending' || !pathname) return;
 
     const isPinEntryRoute = pathname === PIN_ENTRY_ROUTE;
-    // Check if current path starts with any of the public/auth routes
-    const isPublicAuthRoute = PUBLIC_AUTH_ROUTES.some(route => pathname.startsWith(route));
+    // Public route detection: exact match for '/', prefix match for others
+    const isPublicAuthRoute =
+      pathname === "/" || PUBLIC_AUTH_ROUTES.some((route) => route !== "/" && pathname.startsWith(route));
     
     // --- Simplified Redirection Logic ---
     // Removed onboarding state check
@@ -62,7 +63,8 @@ export default function AppInitializer({ children }: { children: React.ReactNode
   }
 
   const isPinEntryRoute = pathname === PIN_ENTRY_ROUTE;
-  const isPublicAuthRoute = PUBLIC_AUTH_ROUTES.some(route => pathname?.startsWith(route));
+  // Public route detection: exact match for '/', prefix match for others
+  const isPublicAuthRoute = pathname === "/" || PUBLIC_AUTH_ROUTES.some((route) => route !== "/" && pathname?.startsWith(route));
   const isProtectedRoute = !isPublicAuthRoute && !isPinEntryRoute;
 
   // 2. Handle Authenticated State

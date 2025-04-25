@@ -12,9 +12,14 @@ export interface AuthResponse {
   token: string
 }
 
+export interface LoginInitiationResponse {
+  requiresOtp: boolean
+}
+
 export interface OtpVerificationResponse {
   success: boolean
   phone: string
+  token: string
 }
 
 export interface TransactionFilters {
@@ -43,6 +48,23 @@ export interface CashOutResponse {
   date: string
 }
 
+// Mock user data (replace with actual data or fetch logic)
+let mockUser: User = {
+  id: "user-123",
+  firstName: "Satoshi",
+  lastName: "Nakamoto",
+  phone: "+1234567890",
+  email: "satoshi@example.com",
+  avatar: "https://via.placeholder.com/150", // Correct field name
+};
+
+// Mock wallet balance
+let mockBalance: WalletBalance = {
+  available: 1234.56,
+  total: 1300.00, // Add required field
+  pending: 65.44,  // Add required field
+};
+
 // Mock API implementation
 class ApiService {
   private token: string | null = null
@@ -56,13 +78,14 @@ class ApiService {
   // Set auth token
   setToken(token: string) {
     this.token = token
-    localStorage.setItem("auth_token", token)
+    // Store auth token in secure storage so it works on native builds.
+    import("@/utils/secure-storage").then(({ setItem }) => setItem("auth_token", token))
   }
 
   // Clear auth token
   clearToken() {
     this.token = null
-    localStorage.removeItem("auth_token")
+    import("@/utils/secure-storage").then(({ removeItem }) => removeItem("auth_token"))
   }
 
   // User endpoints
@@ -70,7 +93,8 @@ class ApiService {
     // Mock user data
     const user: User = {
       id: "user123",
-      name: "John Doe",
+      firstName: "John",
+      lastName: "Doe",
       phone: "+1 (555) 123-4567",
       email: "john.doe@example.com",
       avatar: "JD",
@@ -83,7 +107,8 @@ class ApiService {
     // Mock update user
     const user: User = {
       id: "user123",
-      name: "John Doe",
+      firstName: "John",
+      lastName: "Doe",
       phone: "+1 (555) 123-4567",
       email: "john.doe@example.com",
       avatar: "JD",
@@ -94,16 +119,11 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(phone: string, pin: string): Promise<ApiResponse<AuthResponse>> {
-    // Mock login
-    const response: AuthResponse = {
-      user: {
-        id: "user123",
-        name: "John Doe",
-        phone: phone,
-        avatar: "JD",
-      },
-      token: "mock-auth-token-123",
+  async login(phone: string): Promise<ApiResponse<LoginInitiationResponse>> {
+    // Mock login initiation - always requires OTP for now
+    console.log(`[Mock API] Initiating login for ${phone}, requires OTP.`);
+    const response: LoginInitiationResponse = {
+      requiresOtp: true,
     }
 
     return this.delay({ data: response, success: true })
@@ -114,6 +134,7 @@ class ApiService {
     const response: OtpVerificationResponse = {
       success: true,
       phone: phone,
+      token: "mock-verified-auth-token-456"
     }
 
     return this.delay({ data: response, success: true })
@@ -283,6 +304,53 @@ class ApiService {
     return this.delay({ data: address, success: true })
   }
 }
+
+// --- Mock User Service ---
+export const userService = {
+  /**
+   * Mock function to update user profile data.
+   * @param userId - The ID of the user to update (currently ignored in mock).
+   * @param updateData - The partial user data to update.
+   * @returns A Promise resolving to the updated User object.
+   */
+  updateProfile: async (userId: string, updateData: Partial<User>): Promise<User> => {
+    console.log(`[Mock API] updateProfile called for userId: ${userId} with data:`, updateData);
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Merge the updates into the mock user object
+    mockUser = { ...mockUser, ...updateData };
+
+    console.log(`[Mock API] Returning updated mock user:`, mockUser);
+    return mockUser;
+  },
+
+  /**
+   * Mock function to get the user profile.
+   * @param userId - The ID of the user to fetch (currently ignored in mock).
+   * @returns A Promise resolving to the User object.
+   */
+  getUserProfile: async (userId: string): Promise<User> => {
+    console.log(`[Mock API] getUserProfile called for userId: ${userId}`);
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    console.log(`[Mock API] Returning mock user:`, mockUser);
+    return mockUser;
+  },
+
+  /**
+   * Mock function to get the wallet balance.
+   * @param userId - The ID of the user (currently ignored in mock).
+   * @returns A Promise resolving to the WalletBalance object.
+   */
+  getWalletBalance: async (userId: string): Promise<WalletBalance> => {
+    console.log(`[Mock API] getWalletBalance called for userId: ${userId}`);
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    console.log(`[Mock API] Returning mock balance:`, mockBalance);
+    return mockBalance;
+  },
+};
 
 // Export a singleton instance
 export const apiService = new ApiService()
