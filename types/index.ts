@@ -1,3 +1,7 @@
+// Standard module imports
+import { ErrorCode } from './errors';
+
+// User types
 export type User = {
   id: string
   firstName: string
@@ -5,6 +9,9 @@ export type User = {
   email?: string
   phone: string
   avatar?: string
+  createdAt?: string // ISO date
+  lastLogin?: string // ISO date
+  kycLevel?: string
 }
 
 export type TransactionType = "send" | "receive" | "payment" | "cash_out"
@@ -21,6 +28,10 @@ export type Transaction = {
   note?: string
   recipientId?: string
   senderId?: string
+  assetSymbol?: string
+  network?: string
+  fee?: number
+  txHash?: string
 }
 
 export type Contact = {
@@ -42,8 +53,110 @@ export type FlowState = {
   [key: string]: any
 }
 
-export type WalletBalance = {
+// Pagination wrapper
+export interface Paginated<T> {
+  items: T[]
+  nextCursor?: string | null
+}
+
+export interface PaginationRequest {
+  cursor?: string | null
+  limit?: number
+}
+
+export interface AppSettings {
+  language: string
+  theme: "light" | "dark"
+  dailyLimit?: number
+}
+
+export interface EstimateGasRequest {
+  assetSymbol: string
+  to: string
+  amount: number
+}
+
+export interface GasEstimate {
+  assetSymbol: string
+  fee: number
+  total: number
+}
+
+// Generic API response wrapper (P3)
+export interface ApiResponse<T> {
+  /**
+   * HTTP-like status code. 2xx indicates success.
+   */
+  statusCode: number
+  /**
+   * Human readable status / error message
+   */
+  message: string
+  /**
+   * Payload returned on success (optional for 204 responses)
+   */
+  data?: T
+  /**
+   * Error description (present on non-2xx codes)
+   */
+  error?: string
+  /**
+   * Machine-readable error code identifying the failure cause.
+   */
+  errorCode?: ErrorCode
+  /**
+   * Unique ID to correlate logs between backend and frontend.
+   */
+  traceId: string
+}
+
+// New multi-asset balance (P2). Deprecated WalletBalance will map to first asset for now.
+export type AssetBalance = {
+  symbol: string
   total: number
   available: number
   pending: number
+}
+
+/**
+ * @deprecated Use AssetBalance[] via getBalances()
+ */
+export type WalletBalance = AssetBalance
+
+// ----- Auth & OTP related (legacy) -----
+export interface LoginInitiationResponse {
+  requiresOtp: boolean
+}
+
+export interface OtpVerificationResponse {
+  success: boolean
+  phone: string
+  token: string
+}
+
+// ----- Transaction & Pagination -----
+export interface TransactionFilters {
+  type?: string
+  startDate?: string
+  endDate?: string
+  search?: string
+}
+
+export interface PaymentRequest {
+  id: string
+  amount: number
+  requestorId: string
+  requestorName: string
+  date: string
+  status: string
+  reference: string
+}
+
+export interface CashOutResponse {
+  success: boolean
+  reference: string
+  amount: number
+  fee: number
+  method: string
+  date: string
 }

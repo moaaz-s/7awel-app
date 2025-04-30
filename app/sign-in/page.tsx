@@ -15,33 +15,39 @@ const steps = ["phone", "otp", "pin"]
 export default function SignInPage() {
   const router = useRouter()
   const { t } = useLanguage()
-  const { signin, validatePin } = useAuth()
+  const { signin, verifyOtp, validatePin, isLoading } = useAuth()
   const [currentStep, setCurrentStep] = useState(0)
   const [phoneNumber, setPhoneNumber] = useState("")
+  const [phoneNumberError, setPhoneNumberError] = useState<string | null>(null)
+  const [otpError, setOtpError] = useState<string | null>(null)
 
-  const goToNextStep = async () => {
-    if (currentStep === 0) {
-      // Before moving from phone to OTP, call signin to *initiate* the process
-      const result = await signin(phoneNumber);
-      if (!result.success) {
-        // TODO: Show error message to user (e.g., using toast)
-        console.error("Signin initiation failed:", result.error);
-        return; // Don't proceed if signin initiation fails
-      }
-    } else if (currentStep === 1) {
-      // After OTP verification, the state should be handled by AuthContext's verifyOtp
-      // Navigation to PIN should happen based on AuthContext state change
-      // This direct call might be redundant if verifyOtp sets 'requires_pin' state
-      // For now, let's assume we still need to advance the step locally after OTP success
-      console.log("OTP verified, moving to PIN step.");
+  const handleSignin = async (phoneNumber: string) => {
+    setPhoneNumberError(null);
+    setPhoneNumber(phoneNumber);
+    // Before moving from phone to OTP, call signin to *initiate* the process
+    const result = await signin(phoneNumber);
+    if (!result.success) {
+      // Display the translated error message from the error code
+      console.error("Signin initiation failed:", result.error);
+      setPhoneNumberError(result.error || t(`errors.${result.errorCode || "UNKNOWN_ERROR"}`));
+      return; // Don't proceed if signin initiation fails
     }
-
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    } else {
-      // This branch should no longer be used; final redirect happens after PIN validation
-    }
+    setCurrentStep(steps.indexOf('otp'));
   }
+
+  const handleOtpEntry = async (otp: string) => {
+    setOtpError(null); // Clear previous errors
+    const result = await verifyOtp(phoneNumber, otp);
+    if (!result.success) {
+      // Display the translated error message
+      console.error("OTP Verification failed:", result.error);
+      setOtpError(result.error || t(`errors.${result.errorCode || "UNKNOWN_ERROR"}`)); 
+      return;
+    }
+    // Success! AuthContext should now be in 'requires_pin' state.
+    // AppInitializer will handle redirect OR we transition local step.
+    setCurrentStep(steps.indexOf('pin'));
+  };
 
   const handlePinComplete = async (pin: string) => {
     const ok = await validatePin(pin)
@@ -62,6 +68,12 @@ export default function SignInPage() {
     return t("auth.signIn")
   }
 
+  const getSubtitle = () => {
+    if (currentStep === 0) return t("auth.signInSubtitle")
+    if (currentStep === 1) return t("auth.verifyNumberSubtitle")
+    return t("auth.signInSubtitle")  
+  }
+
   const footerContent =
     currentStep === 0 ? (
       <p>
@@ -75,14 +87,22 @@ export default function SignInPage() {
   return (
     <AuthLayout
       title={getTitle()}
+      subtitle={getSubtitle()}
       backHref={currentStep === 0 ? "/" : undefined}
       backAction={currentStep > 0 ? goToPreviousStep : undefined}
       footerContent={footerContent}
     >
       {currentStep === 0 && (
-        <PhoneInput phoneNumber={phoneNumber} setPhoneNumber={setPhoneNumber} onContinue={goToNextStep} />
+        <PhoneInput onSubmit={handleSignin} />
       )}
-      {currentStep === 1 && <OtpVerification onVerified={goToNextStep} phoneNumber={phoneNumber} />}
+      {currentStep === 1 && (
+        <OtpVerification
+          onVerify={handleOtpEntry}
+          onResend={() => handleSignin(phoneNumber)}
+          error={otpError}
+          isLoading={isLoading}
+        />
+      )}
       {currentStep === 2 && <PinEntry onComplete={handlePinComplete} />}
     </AuthLayout>
   )

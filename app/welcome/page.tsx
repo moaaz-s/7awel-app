@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeftIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 
 export default function WelcomePage() {
@@ -43,7 +43,7 @@ export default function WelcomePage() {
       <header className="flex items-center justify-between p-4">
         {currentSlide > 0 ? (
           <Button variant="ghost" size="icon" onClick={prevSlide}>
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeftIcon className="h-5 w-5" />
           </Button>
         ) : (
           <div className="w-9"></div>

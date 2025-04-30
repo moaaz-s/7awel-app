@@ -1,12 +1,14 @@
 {
-  "name": "my-v0-project",
+  "name": "7awel",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "fix": "eslint . --ext .ts,.tsx --max-warnings=0 --fix",
+    "test": "vitest"
   },
   "dependencies": {
     "@capacitor-community/contacts": "^7.0.0",
@@ -66,6 +68,7 @@
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
     "react-i18next": "latest",
+    "react-international-phone": "^4.5.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
@@ -76,11 +79,19 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^15.2.4",
+    "jsdom": "^26.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^1.5.1"
   }
 }

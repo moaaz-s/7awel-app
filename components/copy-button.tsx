@@ -23,6 +23,7 @@ export function CopyButton({ value, className = "" }: CopyButtonProps) {
       if (!ok) throw new Error("copy failed")
       setCopied(true)
 
+      // Copy success
       toast({
         title: t("common.copied"),
         description: t("common.copiedDescription"),
@@ -34,9 +35,10 @@ export function CopyButton({ value, className = "" }: CopyButtonProps) {
       }, 2000)
     } catch (err) {
       console.error("Failed to copy text: ", err)
+      // Copy failed
       toast({
-        title: t("error.copyFailedTitle"),
-        description: t("error.copyFailedDescription"),
+        title: t("uiErrors.copyFailedTitle"),
+        description: t("uiErrors.copyFailedDescription"),
         variant: "destructive",
       })
     }

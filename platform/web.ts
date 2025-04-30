@@ -2,6 +2,9 @@
 // Web implementation stubs for platform‑specific functionality. These will be replaced by
 // real Capacitor implementations on mobile builds.
 
+import { loadPlatform } from '@/platform';
+import { info, warn, error as logError } from "@/utils/logger";
+
 export async function getDeviceInfo() {
   return {
     platform: "web",
@@ -83,24 +86,24 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export async function scanQRCode(containerId?: string): Promise<{ scanner: any; result: Promise<string | null> } | null> {
-  console.log(`[platform/web] scanQRCode called. containerId: ${containerId}`);
+  info(`[platform/web] scanQRCode called. containerId: ${containerId}`);
   try {
     const { Html5Qrcode } = await import("html5-qrcode")
 
     // Use provided container ID or throw error if not provided for web
     if (!containerId) {
-      console.error("[platform/web] scanQRCode requires a containerId for web platform.");
+      logError("[platform/web] scanQRCode requires a containerId for web platform.");
       return null;
     }
     const scannerElement = document.getElementById(containerId);
     if (!scannerElement) {
-      console.error(`[platform/web] scanQRCode container element with ID '${containerId}' not found.`);
+      logError(`[platform/web] scanQRCode container element with ID '${containerId}' not found.`);
       return null;
     }
 
     // Check if a scanner video is already present in the container
     if (scannerElement.querySelector('video')) {
-      console.warn(`[platform/web] Video element already found in container '${containerId}'. Assuming scanner is already initialized. Aborting duplicate start.`);
+      warn(`[platform/web] Video element already found in container '${containerId}'. Assuming scanner is already initialized. Aborting duplicate start.`);
       // We return null because we don't have the original scanner instance or result promise here.
       // The calling component's logic should handle this null return gracefully.
       return null;
@@ -114,21 +117,21 @@ export async function scanQRCode(containerId?: string): Promise<{ scanner: any; 
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         (text: string) => {
-          console.log(`[platform/web] QR Code detected: ${text}`);
+          info(`[platform/web] QR Code detected: ${text}`);
           // Don't stop here, let the calling component handle cleanup
           // Don't remove the container element, it's part of the page UI
           resolve(text)
         },
         () => {} // Ignore non-matches
       ).catch((err) => {
-        console.error("[platform/web] Scanner start error:", err);
+        logError("[platform/web] Scanner start error:", err);
         resolve(null)
       })
     });
 
     return { scanner, result: resultPromise };
   } catch (err) {
-    console.error("[platform/web] Error loading/starting scanner:", err);
+    logError("[platform/web] Error loading/starting scanner:", err);
     return null
   }
 }

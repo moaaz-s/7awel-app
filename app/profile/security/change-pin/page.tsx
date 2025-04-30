@@ -3,21 +3,16 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Button } from '@/components/ui/button';
 import { ProfileLayout } from '@/components/layouts/ProfileLayout';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from 'sonner';
 import { PinEntry } from '@/components/pin-entry';
-import { Loader2 } from 'lucide-react';
 
 export default function ChangePinScreen() {
   const { t } = useLanguage();
   const router = useRouter();
   const { checkPin, setPin } = useAuth();
 
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [tempNewPin, setTempNewPin] = useState<string | null>(null);
@@ -95,33 +90,22 @@ export default function ChangePinScreen() {
   };
 
   return (
-    <ProfileLayout title={getTitle()} backHref={step === 0 ? "/profile/security" : undefined}
-    // Optional: Implement back action to go to previous step if desired
-    // backAction={step > 0 ? () => setStep(prev => (prev - 1) as 0 | 1 | 2) : undefined}
+    <ProfileLayout 
+      title={getTitle()} 
+      backHref={step === 0 ? "/profile/security" : undefined}
+      backAction={step > 0 ? () => setStep(prev => (prev - 1) as 0 | 1 | 2) : undefined}
     >
-      <div className="flex flex-col items-center justify-center space-y-4">
-        <p className="text-muted-foreground text-center">{getPrompt()}</p>
+      <div className="flex flex-col items-center justify-center mt-4">
+        <p className="text-lg text-center mb-12">{getPrompt()}</p>
 
-        <div className="flex items-center justify-center">
-          {/* Use key to force re-render and clear internal state on step change */}
-          <PinEntry
-            onComplete={handleComplete}
-            key={step}
-            showBiometric={false}
-            showForgotPin={false} // Hide Forgot PIN in Change PIN flow
-          />
-        </div>
-
-        {isLoading && (
-          <div className="flex items-center justify-center text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {t('common.loading')}...
-          </div>
-        )}
-
-        {error && (
-          <p className="text-sm text-red-600 text-center mt-2">{error}</p>
-        )}
+        <PinEntry
+          onComplete={handleComplete}
+          key={step}
+          showBiometric={false}
+          showForgotPin={false}
+          error={error}
+          isLoading={isLoading}
+        />
       </div>
     </ProfileLayout>
   );

@@ -1,55 +1,103 @@
+// https://refero.design/apps/74
 "use client"
 
-import { ButtonPrimary } from "@/components/ui/button-primary"
-import { LanguageProvider } from "@/context/LanguageContext"
+import { useLanguage } from "@/context/LanguageContext"
 import { ClientLanguageWrapper } from "@/components/client-language-wrapper"
-import { LanguageSwitcher } from "@/components/language-switcher"
+import { ReelsContainer, type ReelSlide } from "@/components/ui/reels-container"
+import Image from "next/image"
+import { motion } from "framer-motion"
+
+// Animated Crypto Coins component for visual appeal
+function AnimatedCoins() {
+  return (
+    <div className="relative w-full h-full">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute"
+          initial={{ 
+            x: Math.random() * 300 - 150, 
+            y: Math.random() * 300 - 150,
+            rotate: Math.random() * 180 - 90,
+            opacity: 0.5
+          }}
+          animate={{
+            x: Math.random() * 300 - 150,
+            y: Math.random() * 300 - 150,
+            rotate: [null, Math.random() * 180 - 90],
+            opacity: [0.5, 0.8, 0.5]
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut",
+            delay: i * 0.5
+          }}
+          style={{
+            width: 80 + Math.random() * 80,
+            height: 80 + Math.random() * 80,
+          }}
+        >
+          <Image
+            src={`/coins/coin-${i % 3 + 1}.png`}
+            alt="Crypto coin"
+            width={120}
+            height={120}
+            className="w-full h-full object-contain opacity-70 drop-shadow-lg"
+          />
+        </motion.div>
+      ))}
+    </div>
+  )
+}
+
+// Define the splash page slides for the reels
+const splashSlides: ReelSlide[] = [
+  {
+    id: 1,
+    titleKey: "splash.secureWallet",
+    subtitleKey: "splash.secureWalletDesc",
+    content: <AnimatedCoins />,
+    contentType: "component"
+  },
+  {
+    id: 2,
+    titleKey: "splash.transactions",
+    subtitleKey: "splash.transactionsDesc",
+    imageUrl: "/splash/transactions.svg",
+    content: <></> // Empty fragment as fallback
+  },
+  {
+    id: 3,
+    titleKey: "splash.multiChain",
+    subtitleKey: "splash.multiChainDesc",
+    imageUrl: "/splash/multichain.svg",
+    content: <></> // Empty fragment as fallback
+  }
+]
 
 export default function SplashScreen() {
+  const { t } = useLanguage()
+  
   return (
-    <LanguageProvider>
-      <ClientLanguageWrapper>
-        {({ t }) => (
-          <div className="flex min-h-screen flex-col items-center justify-between bg-gradient-to-br from-violet-50 to-blue-100 p-6">
-            <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center gap-8 text-center">
-              <div className="space-y-4">
-                <div className="flex justify-center">
-                  <div className="h-20 w-20 rounded-full bg-gradient-to-r from-violet-500 to-blue-500 flex items-center justify-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="40"
-                      height="40"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="white"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                    </svg>
-                  </div>
-                </div>
-                <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">{t("appName")}</h1>
-                <p className="text-muted-foreground">{t("appTagline")}</p>
-              </div>
-              <div className="w-full space-y-4">
-                <ButtonPrimary href="/onboarding" fullWidth size="xl">
-                  {t("common.getStarted")}
-                </ButtonPrimary>
-                <div className="text-center">
-                  <ButtonPrimary href="/sign-in" variant="link">
-                    {t("auth.signIn")}
-                  </ButtonPrimary>
-                </div>
-                <div className="flex justify-center mt-4">
-                  <LanguageSwitcher />
-                </div>
-              </div>
-            </div>
+    <ClientLanguageWrapper>
+      {() => (
+        <div className="relative min-h-screen overflow-hidden">
+          {/* Dark background with gradient - Always visible */}
+          <div className="absolute inset-0 bg-black">
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/20 via-black to-secondary/20 z-0" />
           </div>
-        )}
-      </ClientLanguageWrapper>
-    </LanguageProvider>
+          
+          <ReelsContainer 
+            slides={splashSlides}
+            showLoginButtons={true}
+            buttonVariant="dark"
+            className="relative z-10"
+          />
+        </div>
+      )}
+    </ClientLanguageWrapper>
   )
 }

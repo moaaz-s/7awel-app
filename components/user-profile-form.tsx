@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { useLanguage } from "@/context/LanguageContext"
 
 interface UserProfileFormProps {
-  onSubmit: () => void
+  onSubmit: (formData: { firstName: string; lastName: string; email: string }) => void
+  isLoading?: boolean
 }
 
-export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
+export function UserProfileForm({ onSubmit, isLoading = false }: UserProfileFormProps) {
   const { t } = useLanguage()
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -19,36 +20,58 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit()
+    onSubmit({
+      firstName,
+      lastName,
+      email
+    })
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="firstName">{t("profile.firstName")}</Label>
-          <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">{t("profile.firstName")}</Label>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              autoFocus
+              disabled={isLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lastName">{t("profile.lastName")}</Label>
+            <Input
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
         </div>
-
         <div className="space-y-2">
-          <Label htmlFor="lastName">{t("profile.lastName")}</Label>
-          <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="email">
-            {t("profile.email")} ({t("common.optional")})
-          </Label>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Label htmlFor="email">{t("profile.email")}</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoading}
+          />
         </div>
       </div>
-
-      <Button
-        type="submit"
+      
+      <Button 
+        type="submit" 
         className="w-full bg-gradient-to-r from-violet-600 to-blue-600 py-6"
-        disabled={!firstName || !lastName}
+        size="lg"
+        disabled={isLoading || !firstName || !lastName}
       >
-        {t("common.continue")}
+        {isLoading ? t("common.loading") : t("common.continue")}
       </Button>
     </form>
   )

@@ -6,6 +6,7 @@ import { useTransaction } from "@/hooks/use-transaction"
 import { transactionService, TransactionStatus } from "@/services/transaction-service"
 import type { Contact } from "@/types"
 import type { CashOutMethod } from "@/services/transaction-service"
+import { info, warn } from "@/utils/logger"
 
 type TransactionStep = "recipient" | "amount" | "confirmation"
 type CashOutStep = "method" | "amount" | "confirmation"
@@ -49,15 +50,15 @@ export function useSendMoneyFlow() {
   }, [])
 
   const handleConfirm = useCallback(async () => {
-    console.log("[useSendMoneyFlow.handleConfirm] Called.");
+    info("[useSendMoneyFlow.handleConfirm] Called.");
     if (!state.recipient) return
 
-    console.log("[useSendMoneyFlow.handleConfirm] Calling sendMoney...");
+    info("[useSendMoneyFlow.handleConfirm] Calling sendMoney...");
     const result = await sendMoney(state.recipient, Number.parseFloat(state.amount), state.note)
-    console.log("[useSendMoneyFlow.handleConfirm] sendMoney result:", result);
+    info("[useSendMoneyFlow.handleConfirm] sendMoney result:", result);
 
     if (result.success) {
-      console.log("[useSendMoneyFlow.handleConfirm] Send money success. Storing details and navigating...");
+      info("[useSendMoneyFlow.handleConfirm] Send money success. Storing details and navigating...");
       // Store transaction details for success page
       transactionService.storeTransactionDetails("sendMoneyDetails", {
         amount: state.amount,
@@ -69,7 +70,7 @@ export function useSendMoneyFlow() {
 
       router.push("/send/success")
     } else {
-      console.warn("[useSendMoneyFlow.handleConfirm] Send money failed. Error should be handled in useTransaction.");
+      warn("[useSendMoneyFlow.handleConfirm] Send money failed. Error should be handled in useTransaction.");
       // Error state should be updated by useTransaction hook
     }
   }, [state, sendMoney, router])

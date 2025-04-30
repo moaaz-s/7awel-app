@@ -1,100 +1,190 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { PhoneNumber } from "@/components/ui/phone-number"
+import React, { useState, useRef, useEffect } from "react"
+import { Button } from "./ui/button"
 import { useLanguage } from "@/context/LanguageContext"
-import { useCodeInput } from "@/hooks/use-code-input"
+import { Input } from "./ui/input"
 
 interface OtpVerificationProps {
-  onVerified: () => void
-  phoneNumber: string
+  onVerify: (otp: string) => void
+  onResend?: () => void
+  isLoading?: boolean
+  error?: string | null
+  resendInterval?: number
 }
 
-export function OtpVerification({ onVerified, phoneNumber }: OtpVerificationProps) {
-  const { t, isRTL } = useLanguage()
-  const [timeLeft, setTimeLeft] = useState(60)
-  const { digits, setDigit, handleKeyDown, inputRefs, reset, isComplete, code } = useCodeInput({ length: 6, rtl: isRTL })
-
+export function OtpVerification({ 
+  onVerify, 
+  onResend, 
+  isLoading = false,
+  error = null,
+  resendInterval = 60 
+}: OtpVerificationProps) {
+  const { t } = useLanguage()
+  const [otp, setOtp] = useState<string[]>(Array(6).fill(""))
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [countdown, setCountdown] = useState(resendInterval)
+  const [canResend, setCanResend] = useState(false)
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+  
+  // Handle countdown for resend button
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prevTime: number) => (prevTime > 0 ? prevTime - 1 : 0))
-    }, 1000)
-
-    return () => clearInterval(timer)
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else {
+      setCanResend(true)
+    }
+  }, [countdown])
+  
+  // Auto-focus the first input on mount
+  useEffect(() => {
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus()
+    }
   }, [])
-
-  const handleChange = setDigit
-
-  const handleSubmit = (e: React.FormEvent) => {
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const { value } = e.target
+    
+    // Only allow numeric input
+    if (value && !/^\d+$/.test(value)) return
+    
+    // Update OTP array with the new value
+    const newOtp = [...otp]
+    newOtp[index] = value.slice(-1) // Take only the last character
+    setOtp(newOtp)
+    
+    // If we entered a value and there's a next input, focus it
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus()
+      setActiveIndex(index + 1)
+    }
+    
+    // Check if all inputs are filled
+    if (newOtp.every(v => v) && newOtp.join("").length === 6) {
+      handleSubmit(newOtp.join(""))
+    }
+  }
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    // If we press backspace and the current input is empty, focus the previous input
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+      setActiveIndex(index - 1)
+    }
+  }
+  
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    if (isComplete) {
-      onVerified()
+    const pastedData = e.clipboardData.getData("text/plain").trim()
+    
+    // If pasted data is all digits and right length, fill inputs
+    if (/^\d+$/.test(pastedData) && pastedData.length <= 6) {
+      const newOtp = [...otp]
+      
+      for (let i = 0; i < pastedData.length; i++) {
+        if (i < 6) {
+          newOtp[i] = pastedData[i]
+        }
+      }
+      
+      setOtp(newOtp)
+      
+      // Focus the next empty input or last input
+      const nextEmptyIndex = newOtp.findIndex(v => !v)
+      const focusIndex = nextEmptyIndex === -1 ? 5 : nextEmptyIndex
+      inputRefs.current[focusIndex]?.focus()
+      setActiveIndex(focusIndex)
+      
+      // If all filled, submit
+      if (newOtp.every(v => v) && newOtp.join("").length === 6) {
+        handleSubmit(newOtp.join(""))
+      }
+    }
+  }
+  
+  const handleSubmit = (otpValue: string) => {
+    if (otpValue.length === 6) {
+      onVerify(otpValue)
+    }
+  }
+  
+  const handleResend = () => {
+    if (canResend && onResend) {
+      onResend()
+      setCountdown(resendInterval)
+      setCanResend(false)
     }
   }
 
-  const handleResend = () => {
-    // Reset OTP fields
-    reset()
-    // Reset timer
-    setTimeLeft(60)
-    // Focus first input
-    inputRefs.current[isRTL ? 5 : 0]?.focus()
-  }
-
-  // Use a single render function for the inputs that handles RTL order
-  const renderInputs = () => {
-    const inputs = digits.map((digit: string, index: number) => (
-      <input
-        key={index}
-        ref={(el) => (inputRefs.current[index] = el)}
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        maxLength={1}
-        value={digit}
-        onChange={(e) => handleChange(index, e.target.value)}
-        onKeyDown={(e) => handleKeyDown(index, e)}
-        className="h-12 w-12 rounded-md border border-input bg-background text-center text-lg font-medium shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-        required
-        dir="ltr"
-        style={{ direction: "ltr" }}
-        autoComplete="one-time-code"
-      />
-    ))
-
-    return inputs
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <p className="text-sm text-muted-foreground">
-          {t("auth.weWillSend")} <PhoneNumber value={phoneNumber} />
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex justify-center gap-2">{renderInputs()}</div>
-
-        <Button
-          type="submit"
-          className="w-full bg-gradient-to-r from-violet-600 to-blue-600 py-6"
-          disabled={!isComplete}
-        >
-          {t("common.continue")}
-        </Button>
-      </form>
-
-      <div className="text-center">
-        {timeLeft > 0 ? (
-          <p className="text-sm text-muted-foreground">{t("common.resendCode", { seconds: timeLeft.toString() })}</p>
-        ) : (
-          <Button variant="link" onClick={handleResend} className="text-violet-600">
-            {t("common.resendCode", { seconds: "0" })}
-          </Button>
+    <div className="space-y-4 w-full">
+      <div className="space-y-2">
+        {/* OTP input grid */}
+        <div className="flex justify-between items-center gap-1">
+          {otp.map((value, index) => {
+            return (
+              <React.Fragment key={index}>
+                <Input
+                  ref={(el) => { inputRefs.current[index] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={value}
+                  onChange={e => handleChange(e, index)}
+                  onKeyDown={e => handleKeyDown(e, index)}
+                  onPaste={handlePaste}
+                  className="w-10 h-11 px-2 text-center text-xl"
+                  autoComplete="off"
+                  autoFocus={index === 0}
+                />
+                {index > 0 && index % 2 === 0 && otp.length > 5 && index === otp.length/2 - 1 && (
+                  <span key={`separator-${index}`} className="text-xl mx-1">•</span>
+                )}
+              </React.Fragment>
+            )
+          })}
+        </div>
+        
+        {/* Error message */}
+        {error && (
+          <p className="text-sm w-full text-center text-destructive">{error}</p>
         )}
+      </div>
+      
+      <div className="space-y-4">
+        {/* Verify button */}
+        {/* <Button
+          type="button"
+          className="w-full"
+          disabled={otp.join("").length !== 6 || isLoading}
+          onClick={() => handleSubmit(otp.join(""))}
+        >
+          {isLoading ? t("common.loading") : t("common.continue")}
+        </Button> */}
+        
+        {/* Resend button */} 
+        <div className="w-full space-y-4 text-center">
+          {canResend? 
+            (
+              <Button
+                type="button"
+                variant="link"
+                size={"sm"}
+                disabled={!canResend || isLoading || !onResend}
+                onClick={handleResend}
+              >
+                {t("common.resendCode")}
+              </Button>
+            )
+            : <Button type="button" variant="link" size={"sm"} disabled={true} className="text-muted-foreground">
+                {t("common.resendCodeCountdown", { seconds: countdown + "" })}
+              </Button>
+          }
+        </div>
       </div>
     </div>
   )

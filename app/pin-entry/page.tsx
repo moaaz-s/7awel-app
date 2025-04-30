@@ -25,22 +25,16 @@ export default function PinEntryScreen() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-blue-100 p-6">
-      <div className="w-full max-w-xs space-y-6 rounded-lg bg-white p-8 shadow-lg">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">{t('pinEntry.title')}</h1> 
-          <p className="text-muted-foreground">{t('pinEntry.description')}</p>
-        </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
+      <div className="w-full max-w-xs mx-auto pt-8">
+        <h1 className="text-2xl font-bold text-center mb-12">{t('pinEntry.title')}</h1>
 
-        <div className="flex justify-center">
-          <PinEntry onComplete={handleComplete} key={entryKey} />
-        </div>
-
-        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-
-        {isLoading && (
-          <p className="text-center text-muted-foreground">{t('common.loading')}...</p>
-        )}
+        <PinEntry 
+          onComplete={handleComplete} 
+          key={entryKey}
+          error={error}
+          isLoading={isLoading}
+        />
       </div>
     </div>
   );

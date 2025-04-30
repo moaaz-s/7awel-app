@@ -3,9 +3,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { apiService } from "@/services/api-service"
 import { useAuth } from "@/context/AuthContext"
-import type { User, Transaction, Contact, WalletBalance } from "@/types"
-import { userService } from "@/services/api-service"
+import type { User, Transaction, Contact, WalletBalance, AssetBalance } from "@/types"
 import { toast } from "sonner"
+import { info, warn, error as logError } from "@/utils/logger"
+import { isApiSuccess } from "@/utils/api-utils"
 
 interface DataContextType {
   // User data
@@ -68,7 +69,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([])
 
   // Get auth state from AuthContext
-  const { authState } = useAuth()
+  const { authState, isTokenReady } = useAuth()
 
   // Function to clear all data state
   const clearDataState = useCallback(() => {
@@ -82,84 +83,93 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Load initial data - Now depends on authState
   const loadInitialData = useCallback(async () => {
     // Only proceed if authenticated (redundant check due to useEffect, but safe)
-    if (authState !== "authenticated") {
-      console.log("[DataContext] Not authenticated, skipping data load.")
+    if (authState !== "authenticated" || !isTokenReady) {
+      info("[DataContext] Not authenticated or token not ready, skipping data load.")
       setIsLoading(false) // Ensure loading stops if called prematurely
       return
     }
-    console.log("[DataContext] Authenticated, loading data...")
+    info("[DataContext] Authenticated and token ready, loading data...")
     setIsLoading(true)
     setError(null)
 
     try {
       // Load user data
       const userResponse = await apiService.getUser()
-      if (userResponse.success) {
+      if (isApiSuccess(userResponse) && userResponse.data) {
         setUser(userResponse.data)
       }
 
-      // Load balance
-      const balanceResponse = await apiService.getWalletBalance()
-      if (balanceResponse.success) {
-        setBalance(balanceResponse.data)
+      // Load balances (multi-asset)
+      const balancesResponse = await apiService.getBalances?.()
+        ?? await apiService.getWalletBalance()
+      if (isApiSuccess(balancesResponse) && balancesResponse.data) {
+        const first = Array.isArray(balancesResponse.data) ? (balancesResponse.data as AssetBalance[])[0] : balancesResponse.data
+        if (first) setBalance(first)
       }
 
       // Load transactions
       const transactionsResponse = await apiService.getTransactions()
-      if (transactionsResponse.success) {
-        setTransactions(transactionsResponse.data)
+      if (isApiSuccess(transactionsResponse) && transactionsResponse.data) {
+        setTransactions(transactionsResponse.data.items ?? [])
       }
 
       // Load contacts
       const contactsResponse = await apiService.getContacts()
-      if (contactsResponse.success) {
-        setContacts(contactsResponse.data)
+      if (isApiSuccess(contactsResponse) && contactsResponse.data) {
+        setContacts(contactsResponse.data.items ?? contactsResponse.data)
       }
     } catch (err) {
       setError("Failed to load data. Please try again.")
-      console.error("Error loading initial data:", err)
+      logError("Error loading initial data:", err)
     } finally {
       setIsLoading(false)
     }
-  }, [authState])
+  }, [authState, isTokenReady])
 
   // Refresh data
   const refreshData = useCallback(async () => {
-    // Reload data if authenticated
-    if (authState === "authenticated") {
+    // Reload data if authenticated and token ready
+    if (authState === "authenticated" && isTokenReady) {
       await loadInitialData()
     }
-  }, [authState, loadInitialData])
+  }, [authState, isTokenReady, loadInitialData])
 
   // Load data based on AuthContext state changes
   useEffect(() => {
-    if (authState === "authenticated") {
+    info(`[DataContext] Auth state changed: ${authState}, Token ready: ${isTokenReady}`);
+    // Load data only when authState is 'authenticated' AND isTokenReady is true
+    if (authState === 'authenticated' && isTokenReady) {
+      info("  Conditions met, calling loadInitialData.");
       loadInitialData()
     } else {
-      // Clear data if not authenticated or pending
+      // Clear data if not authenticated or token not ready
+      info("  Conditions not met, clearing data.");
       clearDataState()
       // If pending, we might want to keep showing loading, but let's stop it for now
       if (authState !== "pending") {
         setIsLoading(false)
       }
     }
-  }, [authState, loadInitialData, clearDataState])
+  }, [authState, isTokenReady, loadInitialData, clearDataState])
 
   // User methods
   const updateUser = useCallback(async (updateData: Partial<User>) => {
     if (!user) throw new Error("User not loaded")
     try {
-      console.log("[DataContext] Calling updateUser with:", updateData)
-      // Simulate API call - Assuming userService is imported
-      const updatedUser = await userService.updateProfile(user.id, updateData)
-      console.log("[DataContext] updateUser successful, received:", updatedUser)
-      // Update local state
-      setUser(updatedUser)
-      // Optionally update storage if user details are persisted there
-      // await storage.setItem("user", JSON.stringify(updatedUser));
-      // No toast here, let the calling component handle UI feedback
+      info("[DataContext] Calling updateUser with:", updateData)
+      // Simulate API call 
+      const response = await apiService.updateUser(updateData)
+      if (isApiSuccess(response) && response.data) {
+        const updatedUser = response.data
+        info("[DataContext] updateUser successful, received:", updatedUser)
+        // Update local state
+        setUser(updatedUser)
+        // Optionally update storage if user details are persisted there
+        // await storage.setItem("user", JSON.stringify(updatedUser));
+        // No toast here, let the calling component handle UI feedback
+      }
     } catch (error: any) {
-      console.error("[DataContext] Error updating user:", error)
+      logError("[DataContext] Error updating user:", error)
       // Re-throw error for the calling component to handle UI feedback (like toast)
       throw error
     }
@@ -171,12 +181,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const response = await apiService.getTransaction(id)
 
-        if (response.success) {
+        if (isApiSuccess(response) && response.data) {
           return response.data
         }
         return undefined
       } catch (err) {
-        console.error("Error fetching transaction:", err)
+        logError("Error fetching transaction:", err)
         return undefined
       }
     },
@@ -209,7 +219,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         const response = await apiService.sendMoney(recipient.id, amount, note)
 
-        if (response.success) {
+        if (isApiSuccess(response) && response.data) {
           // Update local state
           if (balance) {
             setBalance({
@@ -263,7 +273,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         const response = await apiService.requestMoney(amount)
 
-        if (response.success) {
+        if (isApiSuccess(response) && response.data) {
           return {
             success: true,
             reference: response.data.reference,
@@ -310,7 +320,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         const response = await apiService.cashOut(amount, method)
 
-        if (response.success) {
+        if (isApiSuccess(response) && response.data) {
           // Calculate fee
           const feePercentage = method === "bank" ? 0.005 : method === "agent" ? 0.01 : 0.015
           const fee = amount * feePercentage
@@ -385,10 +395,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Function to manually update available balance state
   const updateBalance = useCallback((newAvailableBalance: number) => {
-    console.log(`[DataContext] updateBalance called with: ${newAvailableBalance}`); // Log call
+    info(`[DataContext] updateBalance called with: ${newAvailableBalance}`); // Log call
     setBalance((prevBalance) => {
       if (!prevBalance) {
-        console.warn("[DataContext] updateBalance called but prevBalance is null");
+        warn("[DataContext] updateBalance called but prevBalance is null");
         return null;
       }
       // Keep total/pending, only update available for now
@@ -399,7 +409,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Function to manually add a transaction to the state
   const addTransaction = useCallback((newTransaction: Transaction) => {
-    console.log(`[DataContext] addTransaction called with:`, newTransaction); // Log call
+    info(`[DataContext] addTransaction called with:`, newTransaction); // Log call
     setTransactions((prevTransactions) => [newTransaction, ...prevTransactions]);
   }, []);
 

@@ -13,6 +13,7 @@ const SESSION_TTL_MS = 30 * 60 * 1000;
 
 import { loadPlatform } from '@/platform';
 import { getItem, setItem } from '@/utils/secure-storage';
+import { info } from "@/utils/logger";
 
 /**
  * Checks if the onboarding process has been marked as completed.
@@ -44,10 +45,10 @@ export const setHasCompletedOnboarding = async (completed: boolean): Promise<voi
 export const getPinHash = async (): Promise<string | null> => {
   if (typeof window === 'undefined') return null;
   const secure = await getItem(PIN_HASH_KEY);
-  console.log('[storage] Retrieved PIN hash from secure storage:', secure); // <-- Log secure hash
+  info('[storage] Retrieved PIN hash from secure storage:', secure); // <-- Log secure hash
   if (secure != null) return secure;
   const legacyHash = localStorage.getItem(PIN_HASH_KEY);
-  console.log('[storage] Retrieved PIN hash from localStorage (legacy):', legacyHash); // <-- Log legacy hash
+  info('[storage] Retrieved PIN hash from localStorage (legacy):', legacyHash); // <-- Log legacy hash
   return legacyHash; // Return legacy hash if secure is null
 };
 
@@ -157,5 +158,53 @@ export const getPinLockUntil = async (): Promise<number | null> => {
 export const setPinLockUntil = async (timestamp: number): Promise<void> => {
   if (typeof window !== 'undefined') {
     localStorage.setItem(PIN_LOCK_UNTIL_KEY, String(timestamp));
+  }
+};
+
+// ---------------- OTP brute force helpers ----------------
+
+const OTP_ATTEMPTS_PREFIX = 'app_otp_attempts_';
+const OTP_LOCK_PREFIX = 'app_otp_lock_until_';
+
+function attemptsKey(phone: string) {
+  return `${OTP_ATTEMPTS_PREFIX}${encodeURIComponent(phone)}`;
+}
+
+function lockKey(phone: string) {
+  return `${OTP_LOCK_PREFIX}${encodeURIComponent(phone)}`;
+}
+
+export const getOtpAttempts = async (phone: string): Promise<number> => {
+  if (typeof window === 'undefined') return 0;
+  const val = localStorage.getItem(attemptsKey(phone));
+  return val ? parseInt(val, 10) || 0 : 0;
+};
+
+export const incrementOtpAttempts = async (phone: string): Promise<number> => {
+  const current = await getOtpAttempts(phone);
+  const next = current + 1;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(attemptsKey(phone), String(next));
+  }
+  return next;
+};
+
+export const resetOtpAttempts = async (phone: string): Promise<void> => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(attemptsKey(phone));
+  }
+};
+
+export const getOtpLockUntil = async (phone: string): Promise<number | null> => {
+  if (typeof window === 'undefined') return null;
+  const val = localStorage.getItem(lockKey(phone));
+  if (!val) return null;
+  const parsed = parseInt(val, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+export const setOtpLockUntil = async (phone: string, until: number): Promise<void> => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(lockKey(phone), String(until));
   }
 };

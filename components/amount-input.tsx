@@ -40,7 +40,7 @@ export function AmountInput({
 
       // Validate against maxAmount
       if (numericAmount > maxAmount) {
-        setError(t("error.insufficientFunds"))
+        setError(t("uiErrors.insufficientFunds"))
       } else {
         setError(null)
       }
@@ -53,12 +53,12 @@ export function AmountInput({
     const numericAmount = Number.parseFloat(amount)
 
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError(t("error.invalidAmount"))
+      setError(t("uiErrors.invalidAmount"))
       return
     }
 
     if (numericAmount > maxAmount) {
-      setError(t("error.insufficientFunds"))
+      setError(t("uiErrors.insufficientFunds"))
       return
     }
 

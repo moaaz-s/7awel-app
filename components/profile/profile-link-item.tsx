@@ -2,7 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
-import { ChevronRight } from "lucide-react"
+import { ChevronRightIcon } from "@/components/icons"
 import { useLanguage } from "@/context/LanguageContext"
 
 interface ProfileLinkItemProps {
@@ -23,7 +23,7 @@ export function ProfileLinkItem({
   const { isRTL } = useLanguage()
 
   // Use the correct chevron based on RTL/LTR
-  const Chevron = isRTL ? (props: any) => <ChevronRight {...props} className="rotate-180 h-5 w-5 text-muted-foreground" /> : ChevronRight
+  const Chevron = isRTL ? (props: any) => <ChevronRightIcon {...props} className="rotate-180 h-5 w-5 text-muted-foreground" /> : ChevronRightIcon
 
   return (
     <Link

@@ -2,6 +2,8 @@
 // Secure PIN hashing & verification using PBKDF2 (Web Crypto).
 // Stored format: "<iterations>.<saltBase64>.<hashBase64>"
 
+import { info, error as logError } from "@/utils/logger";
+
 const ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 
@@ -36,19 +38,19 @@ export async function hashPin(pin: string): Promise<string> {
 }
 
 export async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
-  console.log('[pin-hash] Verifying PIN using Web Crypto:', { pin, storedHash }); // <-- Log inputs
+  info('[pin-hash] Verifying PIN using Web Crypto:', { pin, storedHash }); // <-- Log inputs
 
   try {
     const parts = storedHash.split(".");
     if (parts.length !== 3) {
-      console.error('[pin-hash] Invalid stored hash format.');
+      logError('[pin-hash] Invalid stored hash format.');
       return false;
     }
     const [iterStr, saltB64, hashB64] = parts;
     const iterations = parseInt(iterStr, 10);
 
     if (isNaN(iterations) || !saltB64 || !hashB64) {
-      console.error('[pin-hash] Invalid components in stored hash.');
+      logError('[pin-hash] Invalid components in stored hash.');
       return false;
     }
 
@@ -71,10 +73,10 @@ export async function verifyPin(pin: string, storedHash: string): Promise<boolea
     const derivedHashB64 = bufToBase64(derivedBits);
     const result = derivedHashB64 === hashB64;
 
-    console.log('[pin-hash] Comparison result:', result, { derivedHashB64, expectedHashB64: hashB64 }); // <-- Log result and hashes
+    info('[pin-hash] Comparison result:', result, { derivedHashB64, expectedHashB64: hashB64 }); // <-- Log result and hashes
     return result;
   } catch (error) {
-    console.error("[pin-hash] Error verifying PIN:", error);
+    logError("[pin-hash] Error verifying PIN:", error);
     return false;
   }
 }

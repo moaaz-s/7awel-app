@@ -1,5 +1,7 @@
 import { apiService } from "@/services/api-service"
+import { isApiSuccess } from "@/utils/api-utils"
 import type { Transaction, TransactionType, Contact, QRData } from "@/types"
+import { info, warn, error as logError } from "@/utils/logger"
 
 // Transaction validation errors
 export enum TransactionError {
@@ -125,16 +127,15 @@ class TransactionService {
       // Call API service
       const response = await apiService.sendMoney(recipient.id, amount, note)
 
-      if (response.success) {
+      if (isApiSuccess(response) && response.data) {
         return {
           success: true,
           transaction: response.data,
         }
-      } else {
-        return {
-          success: false,
-          error: response.error || TransactionError.TRANSACTION_FAILED,
-        }
+      }
+      return {
+        success: false,
+        error: response.error || TransactionError.TRANSACTION_FAILED,
       }
     } catch (error) {
       return {
@@ -164,16 +165,15 @@ class TransactionService {
       // Call API service
       const response = await apiService.cashOut(amount, method)
 
-      if (response.success) {
+      if (isApiSuccess(response) && response.data) {
         return {
           success: true,
           reference: response.data.reference,
         }
-      } else {
-        return {
-          success: false,
-          error: response.error || TransactionError.TRANSACTION_FAILED,
-        }
+      }
+      return {
+        success: false,
+        error: response.error || TransactionError.TRANSACTION_FAILED,
       }
     } catch (error) {
       return {
@@ -225,12 +225,12 @@ class TransactionService {
   async getTransaction(id: string): Promise<Transaction | undefined> {
     try {
       const response = await apiService.getTransaction(id)
-      if (response.success) {
+      if (isApiSuccess(response) && response.data) {
         return response.data
       }
       return undefined
     } catch (error) {
-      console.error("Error fetching transaction:", error)
+      logError("Error fetching transaction:", error)
       return undefined
     }
   }
@@ -246,12 +246,13 @@ class TransactionService {
   }): Promise<Transaction[]> {
     try {
       const response = await apiService.getTransactions(filters)
-      if (response.success) {
-        return response.data
+      if (isApiSuccess(response) && response.data) {
+        // If paginated result
+        return (response.data as any).items ?? (response.data as unknown as Transaction[])
       }
       return []
     } catch (error) {
-      console.error("Error fetching transaction history:", error)
+      logError("Error fetching transaction history:", error)
       return []
     }
   }

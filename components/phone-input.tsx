@@ -1,63 +1,290 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useLanguage } from "@/context/LanguageContext"
+import { useRef, useState, useEffect } from 'react'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Card, CardContent } from './ui/card'
+import { useClickOutside } from '@/hooks/use-click-outside'
+import { SearchIcon, CheckIcon, ChevronDownIcon } from '@/components/icons'
+import { toast } from '@/hooks/use-toast'
+import { 
+  CountryIso2, 
+  defaultCountries, 
+  FlagImage
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
+import Image from 'next/image'
+import { useLanguage } from '@/context/LanguageContext'
 
-interface PhoneInputProps {
-  phoneNumber: string
-  setPhoneNumber: (value: string) => void
-  onContinue: () => void
+// Enhanced country item type
+interface CountryItem {
+  name: string;
+  iso2: CountryIso2;
+  dialCode: string;
 }
 
-export function PhoneInput({ phoneNumber, setPhoneNumber, onContinue }: PhoneInputProps) {
-  const { t } = useLanguage()
-  const [countryCode, setCountryCode] = useState("+1")
+// Convert library countries to our format
+const formattedCountries: CountryItem[] = defaultCountries.map(country => ({
+  name: ['ae', 'sa', 'us', 'za'].includes(country[1]) 
+    ? country[1] === 'ae' ? 'UAE' 
+    : country[1] === 'sa' ? 'KSA' 
+    : country[1] === 'us' ? 'USA' 
+    : country[1] === 'za' ? 'RSA' 
+    : country[1] 
+    : country[0],
+  iso2: country[1] as CountryIso2,
+  dialCode: country[2]
+})).filter(country => country.name.length <= 10);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onContinue()
+// Add Syria if it's not already in the list
+const syriaExists = formattedCountries.some(country => country.iso2 === 'sy');
+if (!syriaExists) {
+  formattedCountries.push({
+    name: "Syria",
+    iso2: "sy" as CountryIso2,
+    dialCode: "+963"
+  });
+}
+
+// Function to get flag component based on country iso2
+const getCountryFlag = (iso2: CountryIso2) => {
+  // Special case for Syria
+  if (iso2 === 'sy') {
+    return (
+      <Image 
+        src="/flag-syria.png" 
+        alt="Syria" 
+        width={20} 
+        height={15}
+        className="mr-1 rounded-[2px]"
+      />
+    );
+  }
+  
+  // Use the library's flag component for all other countries
+  return <FlagImage iso2={iso2} className="mr-1" />;
+};
+
+interface PhoneInputProps {
+  defaultCountryCode?: string
+  defaultPhoneNumber?: string
+  onSubmit: (phone: string) => void
+  error?: string
+  isLoading?: boolean
+}
+
+export function PhoneInput({
+  defaultCountryCode = "+1",
+  defaultPhoneNumber = "",
+  onSubmit,
+  error,
+  isLoading = false
+}: PhoneInputProps) {
+  const { t } = useLanguage()
+  // const { isRTL } = useLanguage()
+  const [showCountryList, setShowCountryList] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [phoneValue, setPhoneValue] = useState(defaultPhoneNumber)
+  const [selectedCountry, setSelectedCountry] = useState<CountryIso2>('us')
+  
+  const countryListRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
+  // Find the matching country code
+  const selectedCountryDialCode = formattedCountries.find(c => c.iso2 === selectedCountry)?.dialCode || defaultCountryCode;
+  
+  useClickOutside(countryListRef as React.RefObject<HTMLElement>, () => {
+    setShowCountryList(false)
+    setSearchQuery('')
+  })
+  
+  // Filter countries based on search
+  const filteredCountries = searchQuery 
+    ? formattedCountries.filter(c => 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.dialCode.includes(searchQuery)
+      )
+    : formattedCountries;
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow only digits, spaces, dashes, and parentheses
+    const value = e.target.value.replace(/[^\d\s\-()]/g, '')
+    setPhoneValue(value)
+    
+    // Clear error when user starts typing
+    if (validationError) setValidationError(null)
+  }
+  
+  const handleCountrySelect = (dialCode: string, iso2: CountryIso2) => {
+    setSelectedCountry(iso2)
+    setShowCountryList(false)
+    setSearchQuery('')
+  }
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
   }
 
+  // Validate the phone number when error is set from outside
+  useEffect(() => {
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: t('errors.PHONE_INVALID'),
+        description: error
+      })
+    }
+  }, [error, t])
+
+  // Function to validate phone number format
+  const validatePhone = (): boolean => {
+    // Strip all non-digit characters for validation
+    const digitsOnly = phoneValue.replace(/\D/g, '')
+    
+    if (digitsOnly.length === 0) {
+      setValidationError(t('uiErrors.phoneRequired'))
+      toast({
+        variant: "destructive",
+        title: t('errors.PHONE_REQUIRED'),
+        description: t('uiErrors.phoneRequired')
+      })
+      return false
+    }
+    
+    if (digitsOnly.length < 7) {
+      setValidationError(t('uiErrors.phoneInvalid'))
+      toast({
+        variant: "destructive",
+        title: t('errors.PHONE_INVALID'),
+        description: t('uiErrors.phoneInvalid')
+      })
+      return false
+    }
+    
+    if (digitsOnly.length > 15) {
+      setValidationError(t('uiErrors.phoneTooLong'))
+      toast({
+        variant: "destructive",
+        title: t('errors.PHONE_INVALID'),
+        description: t('uiErrors.phoneTooLong')
+      })
+      return false
+    }
+    
+    return true
+  }
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validatePhone()) {
+      return
+    }
+    
+    // Format phone with country code for submission
+    const fullPhone = `${selectedCountryDialCode}${phoneValue.replace(/\D/g, '')}`
+    onSubmit(fullPhone)
+  }
+
+  // Check if the submit button should be disabled
+  const isSubmitDisabled = phoneValue.replace(/\D/g, '').length < 7 || isLoading
+  
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 w-full">
       <div className="space-y-2">
-        <Label htmlFor="phone">{t("auth.phoneNumber")}</Label>
-        <div className="flex gap-2">
-          <Select value={countryCode} onValueChange={setCountryCode}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue placeholder="Code" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="+1">+1 (US)</SelectItem>
-              <SelectItem value="+44">+44 (UK)</SelectItem>
-              <SelectItem value="+91">+91 (IN)</SelectItem>
-              <SelectItem value="+61">+61 (AU)</SelectItem>
-              <SelectItem value="+966">+966 (SA)</SelectItem>
-              <SelectItem value="+971">+971 (UAE)</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Group for country code dropdown and phone input, respecting RTL/LTR */}
+        <div className={`flex gap-2 w-full`} dir="ltr">
+          {/* Country code selector */}
+          <div className="relative" ref={countryListRef}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 px-3 py-2 flex items-center rounded-2xl border-none gap-1 min-w-[105px] bg-gray-100"
+              onClick={() => setShowCountryList(!showCountryList)}
+            >
+              {getCountryFlag(selectedCountry)}
+              <span className="text-sm font-medium">+{selectedCountryDialCode}</span>
+              <ChevronDownIcon className="h-4 w-4 ml-auto" />
+            </Button>
+            
+            {/* Country selection dropdown */}
+            {showCountryList && (
+              <Card className="absolute z-10 top-14 w-60 max-h-80 overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="sticky top-0 bg-card p-2 border-b">
+                    <div className="relative">
+                      <Input
+                        ref={searchInputRef}
+                        icon={<SearchIcon />}
+                        placeholder={t('common.countryCodeSearch')}
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries
+                        .map((countryItem) => (
+                        <button
+                          key={`${countryItem.dialCode}-${countryItem.name}`}
+                          type="button"
+                          className="flex items-center w-full px-3 py-2 gap-1 hover:bg-accent text-left"
+                          onClick={() => handleCountrySelect(countryItem.dialCode, countryItem.iso2)}
+                        >
+                          {getCountryFlag(countryItem.iso2)}
+                          <span className="font-medium">+{countryItem.dialCode}</span>
+                          <span className="ml-2 text-sm text-muted-foreground truncate">
+                            {countryItem.name}
+                          </span>
+                          {countryItem.iso2 === selectedCountry && (
+                            <CheckIcon className="h-4 w-4 ml-auto text-primary" />
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-2 py-4 text-center text-muted-foreground">
+                        {t('common.noResults')}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          {/* Phone number input */}
           <Input
-            id="phone"
             type="tel"
-            placeholder="(555) 123-4567"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            className="flex-1 ltr-phone-number"
-            required
+            placeholder={t('auth.enterPhonePlaceholder')}
+            className="flex-1 h-12"
+            value={phoneValue}
+            onChange={handlePhoneChange}
+            autoComplete="tel"
+            aria-invalid={!!validationError || !!error}
+            onClear={() => setPhoneValue('')}
           />
         </div>
-        <p className="text-sm text-muted-foreground">{t("auth.weWillSend")}</p>
+        
+        {/* Error message - visible in-line */}
+        {(validationError || error) && (
+          <div className="text-red-500 text-sm mt-2">
+            {validationError || error}
+          </div>
+        )}
       </div>
 
-      <Button
-        type="submit"
-        className="w-full bg-gradient-to-r from-violet-600 to-blue-600 py-6"
-        disabled={!phoneNumber}
+      <p className="text-sm text-muted-foreground">{t('auth.weWillSend')}</p>
+      
+      {/* Submit button with app's branding gradient */}
+      <Button 
+        type="submit" 
+        className="w-full h-12 font-semibold rounded-full bg-gradient-to-r from-[#5e3aff] to-[#73bbff] text-white"
+        disabled={isSubmitDisabled}
+        isLoading={isLoading}
       >
         {t("common.continue")}
       </Button>

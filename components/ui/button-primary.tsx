@@ -1,7 +1,10 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { ReactNode } from "react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface ButtonPrimaryProps {
   children: ReactNode
@@ -13,7 +16,7 @@ interface ButtonPrimaryProps {
   size?: "sm" | "md" | "lg" | "xl"
   fullWidth?: boolean
   type?: "button" | "submit" | "reset"
-  variant?: "solid" | "outline" | "ghost" | "link"
+  variant?: "solid" | "outline" | "ghost" | "link" | "gradient"
   icon?: ReactNode
   iconPosition?: "left" | "right"
 }
@@ -32,62 +35,74 @@ export function ButtonPrimary({
   icon,
   iconPosition = "left",
 }: ButtonPrimaryProps) {
-  // Define size classes
-  const sizeClasses = {
-    sm: "py-2 px-3 text-sm",
-    md: "py-2 px-4",
-    lg: "py-3 px-6",
-    xl: "py-4 px-8 text-lg",
-  }
+  // Map sizes to Button component sizes
+  const sizeMap = {
+    sm: "sm",
+    md: "default",
+    lg: "lg",
+    xl: "lg", // Use lg for xl, with custom class adjustments
+  } as const;
 
-  // Define variant classes
-  const variantClasses = {
-    solid: `bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700`,
-    outline: `border-2 border-violet-600 text-violet-600 bg-transparent hover:bg-violet-50`,
-    ghost: `text-violet-600 hover:bg-violet-50 bg-transparent`,
-    link: `text-violet-600 underline-offset-4 hover:underline`
-  }
-
+  // Map variants to Button component variants
+  const variantMap = {
+    solid: "default",
+    outline: "outline",
+    ghost: "ghost",
+    link: "link",
+    gradient: "gradient",
+  } as const;
+  
+  const buttonSize = sizeMap[size];
+  const buttonVariant = variantMap[variant];
+  
+  // Handle size="xl" special case
+  const xlClassAdjustment = size === "xl" ? "py-6 text-lg" : "";
+  
   // Combine classes
-  const buttonClasses = `
-    ${sizeClasses[size]}
-    ${variantClasses[variant]}
-    ${fullWidth ? "w-full" : ""}
-    transition-all duration-200
-    flex items-center justify-center gap-2
-    font-medium rounded-md
-    ${disabled ? "opacity-50 cursor-not-allowed" : ""}
-    ${className}
-  `
+  const combinedClassName = cn(
+    fullWidth ? "w-full" : "",
+    xlClassAdjustment,
+    className
+  );
 
-  // Loading state
+  // Loading indicator
   const content = loading ? (
     <>
-      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-      <span>Loading...</span>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      {children}
     </>
   ) : (
     <>
-      {icon && iconPosition === "left" && <span>{icon}</span>}
+      {icon && iconPosition === "left" && <span className="mr-2">{icon}</span>}
       {children}
-      {icon && iconPosition === "right" && <span>{icon}</span>}
+      {icon && iconPosition === "right" && <span className="ml-2">{icon}</span>}
     </>
-  )
+  );
 
-  // Render as link or button
   if (href) {
     return (
-      <Link href={href} className={`inline-block ${fullWidth ? "w-full" : ""}`}>
-        <button className={buttonClasses} disabled={disabled || loading} type={type}>
-          {content}
-        </button>
-      </Link>
-    )
+      <Button
+        asChild
+        variant={buttonVariant}
+        size={buttonSize}
+        className={combinedClassName}
+        disabled={disabled || loading}
+      >
+        <Link href={href}>{content}</Link>
+      </Button>
+    );
   }
 
   return (
-    <button type={type} className={buttonClasses} onClick={onClick} disabled={disabled || loading}>
+    <Button
+      type={type}
+      variant={buttonVariant}
+      size={buttonSize}
+      className={combinedClassName}
+      onClick={onClick}
+      disabled={disabled || loading}
+    >
       {content}
-    </button>
-  )
+    </Button>
+  );
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { info, warn, error as logError } from "@/utils/logger"
 import { useData } from "@/context/DataContext"
 import { useLanguage } from "@/context/LanguageContext"
 import {
@@ -27,7 +28,7 @@ export function useTransaction() {
     async (recipient: Contact, amount: number, note?: string): Promise<TransactionResult> => {
       setError(null) // Clear previous errors
       setStatus(TransactionStatus.IDLE) // Reset status
-      console.log("[useTransaction.sendMoney] Called with:", { recipient, amount, note });
+      info("[useTransaction.sendMoney] Called with:", { recipient, amount, note });
 
       const currentBalance = balance?.available ?? 0;
 
@@ -52,27 +53,27 @@ export function useTransaction() {
 
       setStatus(TransactionStatus.LOADING)
       // setError(null) // Already cleared above
-      console.log("[useTransaction.sendMoney] Calling transactionService.sendMoney...");
+      info("[useTransaction.sendMoney] Calling transactionService.sendMoney...");
       try {
         const result = await transactionService.sendMoney(recipient, amount, currentBalance, note)
-        console.log("[useTransaction.sendMoney] transactionService.sendMoney result:", result);
+        info("[useTransaction.sendMoney] transactionService.sendMoney result:", result);
 
         if (result.success && result.transaction) {
-          console.log("[useTransaction.sendMoney] Success. Calling updateBalance...");
+          info("[useTransaction.sendMoney] Success. Calling updateBalance...");
           updateBalance(currentBalance - amount)
-          console.log("[useTransaction.sendMoney] Calling addTransaction...");
+          info("[useTransaction.sendMoney] Calling addTransaction...");
           addTransaction(result.transaction)
-          console.log("[useTransaction.sendMoney] Setting status to SUCCESS.");
+          info("[useTransaction.sendMoney] Setting status to SUCCESS.");
           setStatus(TransactionStatus.SUCCESS)
         } else {
-          console.warn("[useTransaction.sendMoney] Failed. Error:", result.error);
+          warn("[useTransaction.sendMoney] Failed. Error:", result.error);
           setError(result.error || "Transaction failed")
           setStatus(TransactionStatus.ERROR)
         }
         return result
 
       } catch (err: any) {
-          console.error("[useTransaction.sendMoney] Error during transactionService call or state update:", err);
+          logError("[useTransaction.sendMoney] Error during transactionService call or state update:", err);
           setError(err.message || "An unexpected error occurred during send money.");
           setStatus(TransactionStatus.ERROR);
           return { success: false, error: err.message || "An unexpected error occurred." };
