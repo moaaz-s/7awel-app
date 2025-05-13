@@ -12,11 +12,18 @@ export async function getDeviceInfo() {
 }
 
 export async function secureStoreSet(key: string, value: string) {
+  console.info('[platform/web] secureStoreSet', key, value);
   localStorage.setItem(key, value)
 }
 
 export async function secureStoreGet(key: string) {
-  return localStorage.getItem(key)
+  const val = localStorage.getItem(key);
+  console.info('[platform/web] secureStoreGet', key, val);
+  return val;
+}
+
+export async function secureStoreRemove(key: string) {
+  localStorage.removeItem(key)
 }
 
 // -------------------- additional feature fallbacks --------------------
@@ -152,5 +159,49 @@ export async function addNetworkListener(callback: (online: boolean) => void) {
   return () => {
     window.removeEventListener("online", handler)
     window.removeEventListener("offline", handler)
+  }
+}
+
+/**
+ * Opens the appropriate email client on web platforms
+ * 
+ * @param email The email address to use (determines which webmail to open)
+ * @returns Promise<boolean> indicating success
+ */
+export async function openEmailClient(email: string): Promise<boolean> {
+  try {
+    const domain = email.split('@')[1]?.toLowerCase() || '';
+    let emailUrl = '';
+    
+    // Determine appropriate webmail URL based on email domain
+    if (domain.includes('gmail')) {
+      emailUrl = 'https://mail.google.com';
+    } else if (domain.includes('outlook') || domain.includes('hotmail')) {
+      emailUrl = 'https://outlook.live.com';
+    } else if (domain.includes('yahoo')) {
+      emailUrl = 'https://mail.yahoo.com';
+    } else if (domain.includes('proton')) {
+      emailUrl = 'https://mail.proton.me';
+    } else {
+      // Try a generic webmail for the domain
+      emailUrl = `https://webmail.${domain}`;
+    }
+    
+    // Open in new tab
+    window.open(emailUrl, '_blank');
+    
+    // [DEPRECATED] In development, simulate a magic link for testing
+    // if (process.env.NODE_ENV === 'development') {
+    //   info('[platform/web] Development mode: simulating magic link click');
+    //   setTimeout(() => {
+    //     const mockToken = 'dev-test-token-' + Math.random().toString(36).substring(2);
+    //     window.open(`/verify-email?t=${mockToken}`, '_blank');
+    //   }, 500);
+    // }
+    
+    return true;
+  } catch (err) {
+    logError('[platform/web] Error opening email client:', err);
+    return false;
   }
 }

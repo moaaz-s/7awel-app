@@ -50,6 +50,7 @@ export const spacing = {
   section: "space-y-6",
   card: "p-4",
   stack: "space-y-4",
+  stack_sm: "space-y-2",
   inline: "space-x-2",
   grid: "gap-4",
   container: "px-4", // Consistent horizontal padding

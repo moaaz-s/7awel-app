@@ -7,10 +7,10 @@ import type { QRData } from "@/types"; // Import QRData type
 import { CopyButton } from "@/components/copy-button"
 import { QRCodeDisplay } from "@/components/qr-code-display"
 import { PageContainer } from "@/components/ui/page-container"
-import { ButtonPrimary } from "@/components/ui/button-primary"
 import { ShareButton } from "@/components/share-button"
 import { spacing, typography } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
+import { Button } from "@/components/ui/button";
 
 // Simple SVG icons
 const ShareIcon = () => (
@@ -49,39 +49,43 @@ export default function ReceivePage() {
   })
 
   // Generate a PayFlow ID from first/last name
-  const payflowId = user ? `${user.firstName}.${user.lastName}`.toLowerCase() + "@payflow" : "user@payflow"
+  const PersonalId = user ? `${user.firstName}.${user.lastName}`.toLowerCase() + "@7awel" : "user@7awel"
 
   // Generate a payment link
-  const paymentLink = `https://payflow.app/pay/${payflowId}`
+  const paymentLink = `https://7awel.money/pay/${PersonalId}`
 
   return (
     <PageContainer title={t("transaction.receive")} backHref="/home">
-      <div className="w-full max-w-md mx-auto space-y-6 text-center">
-        <h2 className={typography.h2}>{t("qr.yourQrCode")}</h2>
-        <p className={`${typography.small} ${typography.muted}`}>{t("qr.shareQr")}</p>
+      <div className={`flex-1 flex flex-col justify-between w-full max-w-md mx-auto text-center`}>
 
-        <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />
+        <div className={spacing.stack_sm}>
+          <h2 className={typography.h2}>{t("qr.yourQrCode")}</h2>
+          <p className={`${typography.small} ${typography.muted}`}>{t("qr.shareQr")}</p>
+        </div>
 
-        <div className={spacing.stack}>
-          <p className={`${typography.small} font-medium`}>{t("qr.payflowId")}</p>
+        <div className={`${spacing.stack_sm} flex flex-col`}>
+          <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />
+          
           <div className="flex items-center justify-center gap-2">
-            <code className="bg-gray-100 px-3 py-1 rounded-md text-sm">{payflowId}</code>
-            <CopyButton value={payflowId} />
+            <code className="bg-gray-100 px-3 py-1 rounded-md text-sm">{PersonalId}</code>
+            <CopyButton value={PersonalId} />
           </div>
         </div>
 
-        <div className={`pt-4 ${spacing.stack}`}>
+        <div className={`pt-4 ${spacing.stack_sm}`}>
           <ShareButton
             fullWidth
+            variant="white"
             url={paymentLink}
             title={t("qr.sharePaymentLink")}
             text={t("qr.defaultShareText", { link: paymentLink })}
+            shadow="none"
           >
             {t("qr.sharePaymentLink")}
           </ShareButton>
-          <ButtonPrimary variant="outline" fullWidth href="/request">
+          <Button variant="outline" fullWidth href="/request" shadow="none">
             {t("qr.requestAmount")}
-          </ButtonPrimary>
+          </Button>
         </div>
       </div>
     </PageContainer>

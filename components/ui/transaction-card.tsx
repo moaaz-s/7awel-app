@@ -5,7 +5,7 @@ import { TransactionIcon } from "@/components/ui/transaction-icon"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { colors, typography } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
-import type { Transaction } from "@/context/AppContext"
+import type { Transaction } from "@/types/index"
 
 interface TransactionCardProps {
   transaction: Transaction
@@ -27,7 +27,7 @@ export function TransactionCard({ transaction, showStatus = false, className = "
           ${className}
         `}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <TransactionIcon type={type} />
             <div>
@@ -38,7 +38,7 @@ export function TransactionCard({ transaction, showStatus = false, className = "
               </div>
             </div>
           </div>
-          <div className={`font-medium ${amount < 0 ? colors.error.text : colors.success.text}`}>
+          <div className={typography.body}>
             {amount < 0 ? "-" : "+"}${Math.abs(amount).toFixed(2)}
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { patterns } from "@/components/ui-config"
-import type { TransactionType } from "@/context/AppContext"
+import type { TransactionType } from "@/types/index"
 import { useLanguage } from "@/context/LanguageContext"
 
 // Standardized transaction icons

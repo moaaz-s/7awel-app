@@ -11,6 +11,10 @@ interface OtpVerificationProps {
   isLoading?: boolean
   error?: string | null
   resendInterval?: number
+  channelLabel?: string
+  expiryTs?: number
+  title?: string
+  subtitle?: string
 }
 
 export function OtpVerification({ 
@@ -18,13 +22,20 @@ export function OtpVerification({
   onResend, 
   isLoading = false,
   error = null,
-  resendInterval = 60 
+  resendInterval = 60,
+  channelLabel,
+  expiryTs,
+  title,
+  subtitle
 }: OtpVerificationProps) {
   const { t } = useLanguage()
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""))
   const [activeIndex, setActiveIndex] = useState(0)
   const [countdown, setCountdown] = useState(resendInterval)
   const [canResend, setCanResend] = useState(false)
+  const [expiryCountdown, setExpiryCountdown] = useState<number | null>(
+    expiryTs ? Math.max(0, Math.floor((expiryTs - Date.now()) / 1000)) : null
+  )
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
   
   // Handle countdown for resend button
@@ -38,6 +49,22 @@ export function OtpVerification({
       setCanResend(true)
     }
   }, [countdown])
+  
+  // Handle OTP expiry countdown
+  useEffect(() => {
+    if (!expiryTs) return;
+    if (expiryCountdown === null) return;
+    if (expiryCountdown <= 0) {
+      // Expired – clear inputs and disable further typing
+      setOtp(Array(6).fill(""));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setExpiryCountdown(prev => (prev !== null ? prev - 1 : null))
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [expiryCountdown, expiryTs])
   
   // Auto-focus the first input on mount
   useEffect(() => {
@@ -122,9 +149,17 @@ export function OtpVerification({
 
   return (
     <div className="space-y-4 w-full">
+      {/* Title and subtitle if provided */}
+      {(title || subtitle) && (
+        <div className="text-center mb-6 space-y-1">
+          {title && <h2 className="text-2xl font-bold">{title}</h2>}
+          {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
+        </div>
+      )}
+      
       <div className="space-y-2">
         {/* OTP input grid */}
-        <div className="flex justify-between items-center gap-1">
+        <div className="flex justify-between items-center gap-1" dir="ltr">
           {otp.map((value, index) => {
             return (
               <React.Fragment key={index}>
@@ -140,6 +175,7 @@ export function OtpVerification({
                   className="w-10 h-11 px-2 text-center text-xl"
                   autoComplete="off"
                   autoFocus={index === 0}
+                  disabled={expiryCountdown !== null && expiryCountdown <= 0}
                 />
                 {index > 0 && index % 2 === 0 && otp.length > 5 && index === otp.length/2 - 1 && (
                   <span key={`separator-${index}`} className="text-xl mx-1">•</span>
@@ -168,11 +204,41 @@ export function OtpVerification({
         
         {/* Resend button */} 
         <div className="w-full space-y-4 text-center">
+          {channelLabel && (
+            <p className="text-sm text-muted-foreground text-center">
+              {expiryCountdown !== null && expiryCountdown > 0
+                ? t('auth.otpCodeSent', { 
+                    channel: channelLabel,
+                    time: `${Math.floor(expiryCountdown / 60)
+                      .toString()
+                      .padStart(2, '0')}:${(expiryCountdown % 60)
+                      .toString()
+                      .padStart(2, '0')}`
+                  })
+                : t('auth.otpCodeExpired', { channel: channelLabel })
+              }
+            </p>
+          )}
+          
+          {/* Show a standalone expiry countdown only if no channel label is provided */}
+          {!channelLabel && expiryCountdown !== null && (
+            <p className="text-xs text-muted-foreground text-center">
+              {expiryCountdown > 0
+                ? `${t('auth.codeExpiresIn')} ${Math.floor(expiryCountdown / 60)
+                    .toString()
+                    .padStart(2, '0')}:${(expiryCountdown % 60)
+                    .toString()
+                    .padStart(2, '0')}`
+                : t('auth.codeExpired')}
+            </p>
+          )}
+          
           {canResend? 
             (
               <Button
                 type="button"
                 variant="link"
+                shadow={"none"}
                 size={"sm"}
                 disabled={!canResend || isLoading || !onResend}
                 onClick={handleResend}
@@ -180,9 +246,18 @@ export function OtpVerification({
                 {t("common.resendCode")}
               </Button>
             )
-            : <Button type="button" variant="link" size={"sm"} disabled={true} className="text-muted-foreground">
+            : (
+              <Button 
+                type="button" 
+                variant="link" 
+                size={"sm"} 
+                disabled={true} 
+                shadow={"none"}
+                className="text-muted-foreground"
+              >
                 {t("common.resendCodeCountdown", { seconds: countdown + "" })}
               </Button>
+            )
           }
         </div>
       </div>

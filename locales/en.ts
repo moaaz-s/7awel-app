@@ -1,4 +1,13 @@
 export const en = {
+  appName: "PayFlow",
+  appTagline: "Send, receive, and manage money instantly",
+  version: "App Version {version}",
+  bottomNavigation: {
+    home: "Home",
+    wallet: "Wallet",
+    history: "History",
+    settings: "Settings",
+  },
   common: {
     back: "Back",
     continue: "Continue",
@@ -33,12 +42,15 @@ export const en = {
     copied: "Copied!",
     copiedDescription: "Text copied to clipboard",
     search: "Search",
-    noResults: "No results found",
+    noResults: "No results found"
   },
   auth: {
     signIn: "Welcome back!",
+    signInTitle: "Sign in to 7awel",
     signInSubtitle: "Enter the phone number associated with your 7awel account",
     signUp: "Welcome to 7awel",
+    signUpTitle: "Create your 7awel account",
+    signUpSubtitle: "Enter your phone number to get started",
     verifyNumberSubtitle: "Enter received OTP",
     signOut: "Sign Out",
     createAccount: "Create Account",
@@ -46,14 +58,33 @@ export const en = {
     enterPhone: "Let's get started!",
     enterPhonePlaceholder: "Enter your phone number",
     verifyNumber: "Verify your number",
+    verifyPhone: "Verify your phone",
+    enterCodeSent: "Enter the verification code we've sent",
+    codeExpiresIn: "Your verification code expires in",
+    codeExpired: "Your verification code has expired",
+    setupPin: "Create a PIN",
+    setupPinSubtitle: "Set a secure PIN to protect your account",
     enterPin: "Enter your PIN",
+    enterPinSubtitle: "Enter your PIN to continue",
+    resetPinTitle: "Reset your PIN",
+    resetPinSubtitle: "We'll send a verification code to reset your PIN",
+    sentCodeVia: "We've sent a verification code to your {channel}",
+    otpCodeSent: "The code we sent to your {channel} will expire in {time}",
+    otpCodeExpired: "The code we sent to your {channel} has expired",
+    sessionExpired: "Your session has expired. Please sign in again.",
     createPin: "Create a 4-digit PIN",
     confirmPin: "Confirm your PIN",
     forgotPin: "Forgot PIN?",
     alreadyHaveAccount: "Already have an account?",
     dontHaveAccount: "Don't have an account?",
     phoneExplain: "Your account will be linked to your phone number", 
-    weWillSend: "We'll send a verification code to your WhatsApp",
+    weWillSend: "We'll send a verification code to your phone",
+    weWillSendWhatsApp: "We'll send a verification code to your WhatsApp",
+    weWillSendTelegram: "We'll send a verification code to your Telegram",
+    selectChannel: "Select how you want to receive your code",
+    pleaseSelectChannel: "Please select a channel to receive your verification code",
+    whatsapp: "WhatsApp",
+    telegram: "Telegram",
     youllUseThisToSecure: "You'll use this to secure your account",
     enterSamePinAgain: "Enter the same PIN again to confirm",
     security: "Security",
@@ -69,6 +100,27 @@ export const en = {
     continueWithGoogle: "Continue with Google",
     continueWithApple: "Continue with Apple",
     invalidPhone: "Please enter a valid phone number",
+    phoneEntryTitle: "Enter your phone number",
+    phoneEntrySubtitle: "We'll use this to verify your identity",
+    phoneOtpVerificationTitle: "Verify your number",
+    phoneOtpVerificationSubtitle: "Enter the verification code we've sent",
+    emailOtpVerificationTitle: "Verify your email",
+    emailOtpVerificationSubtitle: "Enter the verification code we've sent",
+    pinSetupTitle: "Secure your account",
+    pinSetupSubtitle: "Create a PIN to protect your wallet",
+    emailEntryTitle: "Enter your email",
+    emailEntrySubtitle: "We'll send a verification link to this email",
+    initializing: "Initializing...",
+    loading: "Loading...",
+  },
+  placeholders: {
+    email: "name@example.com",
+    phone: "Enter your phone number",
+    firstName: "Enter your first name",
+    lastName: "Enter your last name",
+    search: "Search...",
+    pin: "Enter your PIN",
+    amount: "0.00"
   },
   profile: {
     title: "Profile",
@@ -94,10 +146,20 @@ export const en = {
     cashOut: "Cash Out",
     points: "Points",
     home: "Home",
+    main: "Main",
+    accounts: "Accounts",
+    addMoney: "Add money",
+    exchange: "Exchange",
+    details: "Details",
+    more: "More",
   },
   transaction: {
     amount: "Amount",
-    fee: "Fee",
+    fee_label: "Fee",
+    to_label: "To",
+    reception_date_label: "Arriving",
+    reception_immediate: "In seconds",
+    fee_offered: "Offered",
     total: "Total",
     reference: "Reference",
     date: "Date",
@@ -139,7 +201,6 @@ export const en = {
     searchResults: "Search Results",
     enterAmount: "Enter Amount",
     addNote: "Add a note (optional)",
-    to: "To",
     from: "From",
   },
   qr: {
@@ -173,9 +234,6 @@ export const en = {
     phoneInvalid: "Phone number is invalid",
     phoneRequired: "Phone number is required",
   },
-  error: {
-    // All entries moved to uiErrors
-  },
   onboarding: {
     sendMoney: "Send Money Anywhere",
     sendMoneyDesc: "Fast and secure transfers to any wallet",
@@ -186,9 +244,6 @@ export const en = {
     cashOut: "Cash Out Easily",
     cashOutDesc: "Convert to local currency whenever needed",
   },
-  appName: "PayFlow",
-  appTagline: "Send, receive, and manage money instantly",
-  version: "App Version {version}",
   cashOut: {
     title: "Cash Out",
     enterAmount: "Enter Amount",
@@ -342,7 +397,23 @@ export const en = {
     multiChainDesc: "Manage all your assets in one place",
     login: "Log in",
     signup: "Sign up",
-    continue: "Continue"
+    continue: "Continue",
+    slide1: {
+      title: "The money app made for where you're from",
+      subtitle: "No banks. No borders. Just power."
+    },
+    slide2: {
+      title: "Instant cash access",
+      subtitle: "In-person pickup, digital speed"
+    },
+    slide3: {
+      title: "Safe until you need it",
+      subtitle: "Your new bank in your pocket"
+    },
+    slide4: {
+      title: "One-tap transfers",
+      subtitle: "Send money to friends in seconds"
+    }
   },
   countrySearch: {
     search: "Search for a country",
@@ -367,6 +438,7 @@ export const en = {
     PHONE_REQUIRED: "Phone number is required.",
     PHONE_NOT_REGISTERED: "This phone number is not registered.",
     PHONE_ALREADY_REGISTERED: "This phone number is already registered.",
+    EMAIL_ALREADY_REGISTERED: "This email is already registered.",
     TOO_MANY_ATTEMPTS: "Too many attempts. Please try again later.",
     
     // Error codes - OTP
@@ -380,6 +452,59 @@ export const en = {
     PIN_REQUIRED: "PIN is required.",
     PIN_MISMATCH: "PINs don't match. Please try again.",
     TOO_MANY_PIN_ATTEMPTS: "Too many PIN attempts. Please try again later.",
-    TOKEN_SAVE_FAILED: "Failed to save authentication session."
+    TOKEN_SAVE_FAILED: "Failed to save authentication session.",
+    
+    // Email verification errors
+    VERIFICATION_NOT_FOUND: "Verification not found. Please request a new code.",
+    VERIFICATION_EXPIRED: "Verification code has expired. Please request a new code.",
   },
-}
+  
+  // Email verification translations
+  verifyEmail: {
+    title: "Check your email",
+    description: "We've sent a verification email. Check your inbox including spam and junk folders, enter the code below, and you'll be directed back to the app.",
+    verifying: "Verifying your email...",
+    verified: "Email verified!",
+    redirecting: "Redirecting you back to the app...",
+    linkInvalid: "This link is invalid or has been used from a different device.",
+    codeInvalid: "Invalid or expired code. Please try again.",
+    success: "Email verification successful!",
+    successDescription: "Your email address has been verified.",
+    resendSuccess: "Verification email resent",
+    resendError: "Couldn't resend email",
+    checkInbox: "Please check your inbox for the verification code.",
+    noEmailStored: "No email address found. Please contact support.",
+    tryAgain: "Please try again later.",
+    goToInbox: "Go to inbox",
+    skipForNow: "Skip for now"
+  },
+  pinPad: {
+    keypadNumberLabel: 'Number {num}',
+    deleteLabel: 'Delete last digit',
+    biometricLabel: 'Use biometric authentication',
+    submitLabel: 'Submit PIN',
+    forgotPinLink: 'Forgot PIN?',
+    errorInvalid: 'Invalid PIN. Please try again.',
+    setupTitleEntry: 'Set up your PIN',
+    setupTitleConfirm: 'Confirm your PIN',
+    setupSubtitleEntry: 'Create a secure {pinLength}-digit PIN for quick access.',
+    setupSubtitleConfirm: 'Enter the same PIN again to confirm.',
+    errorMismatch: 'PINs do not match. Please try again.',
+    cancelButton: 'Cancel',
+    updateTitleCurrent: 'Enter your current PIN',
+    updateSuccess: 'PIN updated successfully!',
+    errorUpdateIncorrectCurrent: 'Current PIN is incorrect.',
+    changeTitle: 'Change PIN',
+  },
+  setPin: {
+    title: 'Set Your Security PIN',
+    subtitle: 'Create a secure PIN for your wallet. This will be required for transactions and important actions.',
+    pinLabel: 'Enter 6-digit PIN',
+    confirmPinLabel: 'Confirm 6-digit PIN',
+    setPinButton: 'Set PIN',
+    pinMismatch: 'PINs do not match.',
+    pinInvalidFormat: 'PIN must be 6 digits.',
+    pinSetSuccess: 'PIN set successfully!',
+    pinSetError: 'Failed to set PIN. Please try again.',
+  },
+};

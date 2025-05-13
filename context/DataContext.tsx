@@ -2,20 +2,20 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { apiService } from "@/services/api-service"
-import { useAuth } from "@/context/AuthContext"
-import type { User, Transaction, Contact, WalletBalance, AssetBalance } from "@/types"
-import { toast } from "sonner"
+import { useAuth } from "@/context/auth/AuthContext"
+import { useSession } from "@/context/SessionContext"
+import { AuthStatus } from "@/context/auth/auth-state-machine"
+import { SessionStatus } from "@/context/auth/auth-types"
 import { info, warn, error as logError } from "@/utils/logger"
 import { isApiSuccess } from "@/utils/api-utils"
+import { User, Transaction, Contact, AssetBalance, WalletBalance, Paginated } from "@/types"
 
 interface DataContextType {
   // User data
   user: User | null
   isLoading: boolean
   error: string | null
-
-  // Balance
-  balance: WalletBalance | null
+  balance: AssetBalance | null
 
   // User methods
   updateUser: (updateData: Partial<User>) => Promise<void>
@@ -60,16 +60,17 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  // Get auth state from AuthContext
+  const { authStatus } = useAuth()
+  const { status: sessionStatus } = useSession()
+
   // State
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [balance, setBalance] = useState<WalletBalance | null>(null)
+  const [balance, setBalance] = useState<AssetBalance | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
-
-  // Get auth state from AuthContext
-  const { authState, isTokenReady } = useAuth()
 
   // Function to clear all data state
   const clearDataState = useCallback(() => {
@@ -82,13 +83,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Load initial data - Now depends on authState
   const loadInitialData = useCallback(async () => {
-    // Only proceed if authenticated (redundant check due to useEffect, but safe)
-    if (authState !== "authenticated" || !isTokenReady) {
-      info("[DataContext] Not authenticated or token not ready, skipping data load.")
+    // Only proceed if authenticated
+    if (authStatus !== AuthStatus.Authenticated) {
+      info("[DataContext] Not authenticated, skipping data load.")
       setIsLoading(false) // Ensure loading stops if called prematurely
       return
     }
-    info("[DataContext] Authenticated and token ready, loading data...")
+    info("[DataContext] Authenticated, loading data...")
     setIsLoading(true)
     setError(null)
 
@@ -124,33 +125,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [authState, isTokenReady])
+  }, [authStatus])
 
   // Refresh data
   const refreshData = useCallback(async () => {
-    // Reload data if authenticated and token ready
-    if (authState === "authenticated" && isTokenReady) {
+    info('[DataContext] Refreshing data...')
+    if (authStatus === AuthStatus.Authenticated) {
       await loadInitialData()
     }
-  }, [authState, isTokenReady, loadInitialData])
+  }, [authStatus, loadInitialData])
 
   // Load data based on AuthContext state changes
   useEffect(() => {
-    info(`[DataContext] Auth state changed: ${authState}, Token ready: ${isTokenReady}`);
-    // Load data only when authState is 'authenticated' AND isTokenReady is true
-    if (authState === 'authenticated' && isTokenReady) {
-      info("  Conditions met, calling loadInitialData.");
+    info(`[DataContext] Auth state changed: ${authStatus}, Session status: ${sessionStatus}`);
+    // Load data when user is authenticated
+    if (authStatus === 'authenticated') {
+      info("  User authenticated, calling loadInitialData.");
       loadInitialData()
     } else {
-      // Clear data if not authenticated or token not ready
-      info("  Conditions not met, clearing data.");
+      info("  User not authenticated, clearing data.");
       clearDataState()
-      // If pending, we might want to keep showing loading, but let's stop it for now
-      if (authState !== "pending") {
+      if (authStatus !== 'pending') {
         setIsLoading(false)
       }
     }
-  }, [authState, isTokenReady, loadInitialData, clearDataState])
+  }, [authStatus, sessionStatus, loadInitialData, clearDataState])
 
   // User methods
   const updateUser = useCallback(async (updateData: Partial<User>) => {
@@ -203,55 +202,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
       error?: string
       transaction?: Transaction
     }> => {
-      setIsLoading(true)
-      setError(null)
-
       try {
-        // Validate amount
-        if (isNaN(amount) || amount <= 0) {
-          return { success: false, error: "Please enter a valid amount." }
-        }
-
-        // Check balance
-        if (balance && amount > balance.available) {
-          return { success: false, error: "Insufficient funds. Please enter a smaller amount." }
-        }
-
+        info(`[DataContext] Sending ${amount} to ${recipient.name} (${recipient.id})`)
+        
+        // Make API call
         const response = await apiService.sendMoney(recipient.id, amount, note)
-
-        if (isApiSuccess(response) && response.data) {
-          // Update local state
-          if (balance) {
-            setBalance({
-              ...balance,
-              available: balance.available - amount,
-              total: balance.total - amount,
-            })
-          }
-
-          // Add to transactions
-          const newTransaction = response.data
-          setTransactions((prev) => [newTransaction, ...prev])
-
-          return {
-            success: true,
-            transaction: newTransaction,
-          }
-        } else {
+        
+        if (!isApiSuccess(response)) {
           return {
             success: false,
-            error: response.error || "Transaction failed. Please try again later.",
+            error: response.message || "Failed to send money",
           }
         }
-      } catch (err) {
-        const errorMessage = "Transaction failed. Please try again later."
-        setError(errorMessage)
-        return { success: false, error: errorMessage }
-      } finally {
-        setIsLoading(false)
+        
+        // Add transaction to local state immediately for better UX
+        if (response.data) {
+          setTransactions((prev) => [response.data as Transaction, ...prev])
+          
+          // If response includes updated balance, update it
+          const responseData = response.data as any
+          if (responseData && responseData.newBalance !== undefined) {
+            setBalance((prev) => prev ? { ...prev, available: responseData.newBalance } : null)
+          }
+          
+          return {
+            success: true,
+            transaction: response.data as Transaction,
+          }
+        }
+        
+        return { success: true }
+      } catch (err: any) {
+        logError("[DataContext] Error sending money:", err)
+        return {
+          success: false,
+          error: err.message || "Failed to send money",
+        }
       }
     },
-    [balance]
+    []
   )
 
   const requestMoney = useCallback(
@@ -262,39 +251,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
       error?: string
       reference?: string
     }> => {
-      setIsLoading(true)
-      setError(null)
-
       try {
-        // Validate amount
-        if (isNaN(amount) || amount <= 0) {
-          return { success: false, error: "Please enter a valid amount." }
-        }
-
+        // Make API call
         const response = await apiService.requestMoney(amount)
-
-        if (isApiSuccess(response) && response.data) {
-          return {
-            success: true,
-            reference: response.data.reference,
-          }
-        } else {
+        
+        if (!isApiSuccess(response)) {
           return {
             success: false,
-            error: response.error || "Request failed. Please try again later.",
+            error: response.message || "Failed to request money",
           }
         }
-      } catch (err) {
-        const errorMessage = "Request failed. Please try again later."
-        setError(errorMessage)
-        return { success: false, error: errorMessage }
-      } finally {
-        setIsLoading(false)
+        
+        return {
+          success: true,
+          reference: response.data?.reference,
+        }
+      } catch (err: any) {
+        logError("[DataContext] Error requesting money:", err)
+        return {
+          success: false,
+          error: err.message || "Failed to request money",
+        }
       }
     },
     []
   )
-
+  
   const cashOut = useCallback(
     async (
       amount: number,
@@ -304,145 +286,109 @@ export function DataProvider({ children }: { children: ReactNode }) {
       error?: string
       reference?: string
     }> => {
-      setIsLoading(true)
-      setError(null)
-
       try {
-        // Validate amount
-        if (isNaN(amount) || amount <= 0) {
-          return { success: false, error: "Please enter a valid amount." }
-        }
-
-        // Check balance
-        if (balance && amount > balance.available) {
-          return { success: false, error: "Insufficient funds. Please enter a smaller amount." }
-        }
-
+        // Make API call
         const response = await apiService.cashOut(amount, method)
-
-        if (isApiSuccess(response) && response.data) {
-          // Calculate fee
-          const feePercentage = method === "bank" ? 0.005 : method === "agent" ? 0.01 : 0.015
-          const fee = amount * feePercentage
-          const totalAmount = amount + fee
-
-          // Update local state
-          if (balance) {
-            setBalance({
-              ...balance,
-              available: balance.available - totalAmount,
-              total: balance.total - totalAmount,
-            })
+        
+        if (!isApiSuccess(response)) {
+          return {
+            success: false,
+            error: response.message || "Failed to process cash out",
           }
-
-          // Add to transactions
+        }
+        
+        // Add transaction to local state immediately for better UX
+        if (response.data) {
           const newTransaction: Transaction = {
-            id: `tx${Date.now()}`,
-            name: `${method.charAt(0).toUpperCase() + method.slice(1)} Withdrawal`,
-            amount: -amount,
-            date: new Date().toISOString().split("T")[0],
+            id: response.data.reference || `cashout-${Date.now()}`,
+            name: `Cash Out (${method})`,
+            amount: amount,
+            date: new Date().toISOString(),
             type: "cash_out",
-            status: "completed",
+            status: "pending",
             reference: response.data.reference,
           }
-
+          
           setTransactions((prev) => [newTransaction, ...prev])
-
+          
+          // If response includes updated balance, update it
+          const responseData = response.data as any
+          if (responseData && responseData.newBalance !== undefined) {
+            setBalance((prev) => prev ? { ...prev, available: responseData.newBalance } : null)
+          }
+          
           return {
             success: true,
             reference: response.data.reference,
           }
-        } else {
-          return {
-            success: false,
-            error: response.error || "Cash out failed. Please try again later.",
-          }
         }
-      } catch (err) {
-        const errorMessage = "Cash out failed. Please try again later."
-        setError(errorMessage)
-        return { success: false, error: errorMessage }
-      } finally {
-        setIsLoading(false)
+        
+        return { success: true }
+      } catch (err: any) {
+        logError("[DataContext] Error processing cash out:", err)
+        return {
+          success: false,
+          error: err.message || "Failed to process cash out",
+        }
       }
     },
-    [balance]
+    []
   )
 
-  // Utility methods
-  const formatCurrency = useCallback((amount: number): string => {
+  // Utility method to update balance (called when adding a new transaction)
+  const updateBalance = useCallback((newAvailableBalance: number) => {
+    setBalance((prev) => prev ? { ...prev, available: newAvailableBalance } : null)
+  }, [])
+
+  // Utility method to add a new transaction (for real-time updates)
+  const addTransaction = useCallback((newTransaction: Transaction) => {
+    setTransactions((prev) => [newTransaction, ...prev])
+  }, [])
+
+  // Format currency (default formatter - components should use more specific formatters)
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: 2,
     }).format(amount)
   }, [])
 
-  const formatDate = useCallback((dateString: string): string => {
-    const date = new Date(dateString)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (date.toDateString() === today.toDateString()) {
-      return "Today"
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Yesterday"
-    } else {
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    }
+  // Format date (default formatter - components should use more specific formatters)
+  const formatDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString()
   }, [])
 
-  // Function to manually update available balance state
-  const updateBalance = useCallback((newAvailableBalance: number) => {
-    info(`[DataContext] updateBalance called with: ${newAvailableBalance}`); // Log call
-    setBalance((prevBalance) => {
-      if (!prevBalance) {
-        warn("[DataContext] updateBalance called but prevBalance is null");
-        return null;
-      }
-      // Keep total/pending, only update available for now
-      // A more robust solution might refetch or calculate total/pending too
-      return { ...prevBalance, available: newAvailableBalance };
-    });
-  }, []);
-
-  // Function to manually add a transaction to the state
-  const addTransaction = useCallback((newTransaction: Transaction) => {
-    info(`[DataContext] addTransaction called with:`, newTransaction); // Log call
-    setTransactions((prevTransactions) => [newTransaction, ...prevTransactions]);
-  }, []);
-
-  // Context value
-  const value = {
-    user,
-    isLoading,
-    error,
-    balance,
-    updateUser,
-    transactions,
-    getTransaction,
-    sendMoney,
-    requestMoney,
-    cashOut,
-    refreshData,
-    formatCurrency,
-    formatDate,
-    contacts,
-    updateBalance,
-    addTransaction,
-  }
-
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
+  return (
+    <DataContext.Provider
+      value={{
+        user,
+        isLoading,
+        error,
+        balance,
+        transactions,
+        contacts,
+        refreshData,
+        updateUser,
+        getTransaction,
+        sendMoney,
+        requestMoney,
+        cashOut,
+        formatCurrency,
+        formatDate,
+        updateBalance,
+        addTransaction,
+      }}
+    >
+      {children}
+    </DataContext.Provider>
+  )
 }
 
 // Custom hook to use the data context
-export function useData(): DataContextType {
+export function useData() {
   const context = useContext(DataContext)
-
-  if (context === undefined) {
-    throw new Error("useData must be used within a DataProvider")
+  if (!context) {
+    throw new Error("useData must be used within DataProvider")
   }
-
   return context
 }

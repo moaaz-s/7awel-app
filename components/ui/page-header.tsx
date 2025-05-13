@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, backHref, backAction, action, clas
   const { isRTL } = useLanguage()
 
   return (
-    <header className={`bg-white pb-8 ${className} ${isRTL ? "rtl-page-header" : ""}`}>
+    <header className={`p-4 ${className}`}>
       <div className="flex items-center pb-4">
         {(backHref || backAction) && (
           <>
@@ -42,14 +42,16 @@ export function PageHeader({ title, subtitle, backHref, backAction, action, clas
           </div>
         )}
       </div>
-      <div className={cn("space-y-2", "")}>
-        <h1 className={cn("text-2xl font-bold", "")}>{title}</h1>
-        {subtitle && (
-          <p className={cn("text-muted-foreground", "")}>
-            {subtitle}
-          </p>
-        )}
-      </div>
+      { (title || subtitle) && 
+        <div className={cn("space-y-2", "")}>
+          {title && <h1 className={cn("text-2xl font-bold", "")}>{title}</h1>}
+          {subtitle && (
+            <p className={cn("text-muted-foreground", "")}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+      }
     </header>
   )
 }

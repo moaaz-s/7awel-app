@@ -19,9 +19,9 @@ export function PageContainer({
   contentClassName = "",
 }: PageContainerProps) {
   return (
-    <div className={`flex min-h-screen flex-col bg-gray-50 ${className}`}>
+    <div className={`flex min-h-screen flex-col ${className}`}>
       <PageHeader title={title} backHref={backHref} action={action} />
-      <main className={`flex-1 p-4 ${contentClassName}`}>{children}</main>
+      <main className={`flex flex-1 px-4 pb-4 ${contentClassName}`}>{children}</main>
     </div>
   )
 }

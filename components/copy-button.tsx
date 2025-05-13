@@ -46,7 +46,7 @@ export function CopyButton({ value, className = "" }: CopyButtonProps) {
 
   return (
     <Button
-      variant="ghost"
+      variant="white"
       size="icon"
       className={`h-8 w-8 transition-all ${className} ${copied ? "bg-green-100 text-green-600" : ""}`}
       onClick={handleCopy}

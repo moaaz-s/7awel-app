@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,10 +89,10 @@ export default function PersonalInfoPage() {
             // Simulate API delay
             await new Promise(resolve => setTimeout(resolve, 1000)); 
             await updateUser(updateData);
-            toast.success(t("profilePages.personalInfo.saveSuccess"));
+            // toast.success(t("profilePages.personalInfo.saveSuccess"));
             form.reset(values); // Reset form state to make it not dirty after save
         } catch (error) {
-            toast.error(t("profilePages.personalInfo.saveError"));
+            // toast.error(t("profilePages.personalInfo.saveError"));
         }
     } else {
         // Optional: Notify user if no changes were made

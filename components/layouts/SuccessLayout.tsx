@@ -33,33 +33,32 @@ export function SuccessLayout({
 }: SuccessLayoutProps) {
   const { t } = useLanguage()
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-white p-4">
-      <div className="w-full max-w-md space-y-6 text-center">
-        {icon && <div className="mx-auto">{icon}</div>}
+    <div className="flex-1 flex min-h-screen flex-col items-center justify-between text-center w-full p-4">
+      {icon && <div className="mx-auto">{icon}</div>}
 
+      <div className="w-full">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">{title}</h1>
           {description && <p className="text-muted-foreground">{description}</p>}
         </div>
 
         {children}
+      </div>
 
-        <div className="mt-6 space-y-3">
-          <ShareButton
-            title={shareTitle}
-            text={shareText}
-            url={shareUrl}
-            fullWidth
-            variant="outline"
-            className="w-full"
-          >
-            {t(shareButtonLabel)}
-          </ShareButton>
+      <div className="w-full">
+        <ShareButton
+          title={shareTitle}
+          text={shareText}
+          url={shareUrl}
+          fullWidth
+          variant="white"
+        >
+          {t(shareButtonLabel)}
+        </ShareButton>
 
-          <Button asChild className="w-full bg-gradient-to-r from-violet-600 to-blue-600">
-            <Link href={primaryActionHref}>{primaryActionText}</Link>
-          </Button>
-        </div>
+        <Button variant={"link"} href={primaryActionHref} fullWidth shadow={'none'}>
+          {primaryActionText}
+        </Button>
       </div>
     </div>
   )

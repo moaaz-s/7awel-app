@@ -12,6 +12,7 @@ interface CardContainerProps {
   noPadding?: boolean
   bordered?: boolean
   hoverable?: boolean
+  shadow?: boolean
 }
 
 export function CardContainer({
@@ -23,13 +24,14 @@ export function CardContainer({
   noPadding = false,
   bordered = true,
   hoverable = false,
+  shadow = false,
 }: CardContainerProps) {
   return (
     <div
       className={`
-        ${radius.lg}
+        ${radius.xl}
         ${bordered ? "border" : ""}
-        ${shadows.sm}
+        ${shadow ? shadows.sm : ""}
         bg-white overflow-hidden
         ${hoverable ? "hover:bg-gray-50 cursor-pointer" : ""}
         ${className}

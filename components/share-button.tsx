@@ -14,7 +14,7 @@ interface ShareButtonProps {
   text?: string
   url?: string
   className?: string
-  variant?: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" | "gradient"
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "gradient" | "white" | "black" | "light" | "dark" | "button-link"
   size?: "default" | "sm" | "lg" | "icon"
   fullWidth?: boolean
   onShareSuccess?: () => void
@@ -104,6 +104,7 @@ export function ShareButton({
       className={`${fullWidth ? "w-full" : ""} ${className}`}
       onClick={handleShare}
       disabled={disabled || isSharing}
+      shadow={"none"}
       {...rest}
     >
       {isSharing ? (

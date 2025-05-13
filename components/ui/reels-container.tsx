@@ -367,35 +367,12 @@ export function ReelsContainer({
       {/* Footer with buttons */}
       <footer className="relative z-10 p-6 space-y-4">
         {showLoginButtons ? (
-          <div className="flex gap-3 mt-4">
-            <Button 
-              asChild
-              // Use solid white for primary button in dark mode
-              variant={buttonVariant === "dark" ? "default" : "default"}
-              // Override text color in dark mode to ensure visibility
-              className={cn(
-                "flex-1",
-                buttonVariant === "dark" && "bg-white text-black hover:bg-white/90"
-              )}
-              size="lg"
-            >
-              <Link href="/sign-in">
-                {t("splash.login")}
-              </Link>
+          <div className="flex justify-center justify-between gap-3 mt-4">
+            <Button fullWidth href="/sign-in" variant="white">
+              {t("splash.login")}
             </Button>
-            <Button 
-              asChild
-              // Use solid black with white text for secondary button in dark mode
-              variant={buttonVariant === "dark" ? "secondary" : "secondary"}
-              className={cn(
-                "flex-1",
-                buttonVariant === "dark" && "bg-black/80 text-white hover:bg-black/70 backdrop-blur-sm"
-              )}
-              size="lg"
-            >
-              <Link href="/sign-up">
-                {t("splash.signup")}
-              </Link>
+            <Button fullWidth href="/sign-up" variant="black">
+              {t("splash.signup")}
             </Button>
           </div>
         ) : (

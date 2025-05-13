@@ -4,20 +4,21 @@ import { useEffect, useState } from "react"
 import { use } from "react";
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { PenIcon } from "@/components/icons/ui-icons"
 import { useData } from "@/context/DataContext";
 import { PageContainer } from "@/components/ui/page-container"
-import { ButtonPrimary } from "@/components/ui/button-primary"
-import { ShareButton } from "@/components/share-button"
-import { spacing, typography } from "@/components/ui-config"
-import { TransactionIcon, ShareIcon } from "@/components/icons"
+import { ContentCard } from "@/components/ui/content-card"
+import { DateDisplay } from "@/components/ui/date-display"
 import { transactionService } from "@/services/transaction-service"
 import type { Transaction } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
+import { toast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
+import { ContentCardRowItem } from "@/components/ui/content-card-row-item";
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { getTransaction, formatDate } = useData()
-  const { t } = useLanguage()
+  const { getTransaction, formatDate, formatCurrency } = useData()
+  const { t, language } = useLanguage()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { id } = use(params)
@@ -49,6 +50,15 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
     fetchTransaction()
   }, [id, getTransaction])
 
+  // Handle the note action
+  const handleAddNote = () => {
+    toast({
+      title: t("transaction.addingNote"),
+      description: t("transaction.enterTransactionNote"),
+      variant: "info",
+    })
+  }
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
@@ -68,95 +78,67 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
     )
   }
 
-  // Format date for display
-  const formattedDate = formatDate(transaction.date)
+  // Transaction date object for display
+  const transactionDate = new Date(transaction.date)
+    
+  // Format transaction amount with sign and currency symbol
+  const isNegative = transaction.amount < 0
+  // Use Euro currency symbol to match the Revolut screenshot
+  const amount = Math.abs(transaction.amount).toFixed(2)
+  const formattedAmount = isNegative ? `-€${amount}` : `€${amount}`
 
-  // Format time (in a real app, this would come from the transaction data)
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  })
-
-  // Get initials for avatar
-  const initial = transaction.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-
+  const transactionHeader = (
+    <div className="flex items-start">
+      <div className="flex-grow">
+        <div className="flex items-baseline mb-1">
+          <h1 className="text-2xl font-semibold mr-1">
+            {formattedAmount}
+          </h1>
+        </div>
+        {/* Make the contact name clickable - using appropriate ID based on transaction type */}
+        <Link 
+          href={`/contacts/${transaction.type === 'send' ? transaction.recipientId : 
+            transaction.type === 'receive' ? transaction.senderId : 
+            transaction.name.replace(/\s/g, '-').toLowerCase()}`} 
+          className="text-base text-primary hover:underline block mb-1"
+        >
+          {transaction.name}
+        </Link>
+        <DateDisplay 
+          date={transactionDate} 
+          format="datetime" 
+          className="text-sm text-gray-500"
+        />
+      </div>
+    </div>
+  )
   return (
-    <PageContainer title={t("transaction.details")} backHref="/transactions">
-      <div className={spacing.section}>
-        <div className="p-6 text-center bg-white rounded-lg">
-          <div className="flex justify-center mb-4">
-            <TransactionIcon type={transaction.type} size="lg" />
-          </div>
+    <PageContainer title={""} backHref="/transactions">
+      <div className="flex flex-col full-width space-y-4">
+        {transactionHeader}
 
-          <h2 className="text-2xl font-bold mb-1">
-            {transaction.amount < 0 ? "-" : "+"}${Math.abs(transaction.amount).toFixed(2)}
-          </h2>
-          <p className={typography.muted}>{t(`transaction.${transaction.status}`)}</p>
-        </div>
+        {/* Status */}
+        <ContentCard>
+          <ContentCardRowItem label={t("transaction.status")}>{t("transaction.completed")}</ContentCardRowItem>
+        </ContentCard>
 
-        <div className="bg-white rounded-lg">
-          <div className="p-4 flex items-center gap-3 border-b">
-            <Avatar>
-              <AvatarFallback className="bg-gradient-to-r from-violet-500 to-blue-500 text-white">
-                {initial}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium">{transaction.name}</p>
-              <p className={`${typography.small} ${typography.muted}`}>
-                {t(transaction.type === "payment" ? "transaction.merchant" : "transaction.user")}
-              </p>
-            </div>
-          </div>
-
-          <div className="divide-y">
-            <div className="flex justify-between p-4">
-              <span className={typography.muted}>{t("transaction.date")}</span>
-              <span>{formattedDate}</span>
-            </div>
-            <div className="flex justify-between p-4">
-              <span className={typography.muted}>{t("transaction.time")}</span>
-              <span>{formattedTime}</span>
-            </div>
-            <div className="flex justify-between p-4">
-              <span className={typography.muted}>{t("transaction.type")}</span>
-              <span className="capitalize">{t(`transaction.${transaction.type}`)}</span>
-            </div>
-            <div className="flex justify-between p-4">
-              <span className={typography.muted}>{t("transaction.referenceId")}</span>
-              <span className="font-mono text-xs">{transaction.reference || `TXN${transaction.id}`}</span>
-            </div>
-            {transaction.note && (
-              <div className="flex justify-between p-4">
-                <span className={typography.muted}>{t("transaction.note")}</span>
-                <span>{transaction.note}</span>
-              </div>
+        {/* Note */}
+        <ContentCard>
+          <ContentCardRowItem label={t("transaction.note")}>
+            {transaction.note || (
+              <button 
+                onClick={handleAddNote}
+                className="text-primary flex items-center gap-1"
+              >
+                <PenIcon className="h-4 w-4" />
+                <span>{t("transaction.addNote")}</span>
+              </button>
             )}
-          </div>
-        </div>
-
-        <div className={spacing.stack}>
-          <ShareButton
-            variant="outline"
-            fullWidth
-            title={t("transaction.shareReceipt")}
-            text={t("transaction.receiptText", {
-              action: transaction.amount < 0 ? t("transaction.send") : t("transaction.receive"),
-              amount: Math.abs(transaction.amount).toFixed(2),
-              reference: transaction.reference || `TXN${transaction.id}`
-            })}
-            url={typeof window !== 'undefined' ? window.location.href : ''}
-          >
-            {t("transaction.shareReceipt")}
-          </ShareButton>
-          {transaction.type === "send" && (
-            <ButtonPrimary fullWidth>{t("transaction.sendAgain")}</ButtonPrimary>
-          )}
-        </div>
+          </ContentCardRowItem>
+        </ContentCard>
+        
+        {/* This renders the toast notifications */}
+        <Toaster />
       </div>
     </PageContainer>
   )

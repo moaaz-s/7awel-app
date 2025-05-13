@@ -34,8 +34,10 @@ export default function ScanSuccessPage() {
       description={t("Your payment has been processed successfully.")}
       primaryActionText={t("Back to Home")}
       primaryActionHref="/home"
-      secondaryActionText={t("Share Receipt")}
-      secondaryActionOnClick={() => {}}
+      shareTitle={t("transaction.transactionDetails")}
+      shareText={t("transaction.shareReceipt")}
+      shareUrl={"/something/something"}
+      shareButtonLabel={t("transaction.shareReceipt")}
       icon={<CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto" />}
     >
       <CardContainer>

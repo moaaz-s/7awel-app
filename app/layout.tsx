@@ -6,16 +6,18 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/context/LanguageContext"
 import { Suspense } from "react"
 import InnerLayout from './InnerLayout';
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider } from "@/context/auth/AuthContext";
 import { DataProvider } from "@/context/DataContext";
+import { SessionProvider } from "@/context/SessionContext";
 import AppInitializer from "@/components/auth/AppInitializer";
 import { ProfileSettingsProvider } from "@/context/ProfileSettingsContext"; 
 import { HapticProvider } from "@/context/HapticContext";
+import { Inter } from 'next/font/google'
 
-const poppins = Poppins({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
-  variable: '--font-poppins',
+  variable: '--font-inter',
 })
 
 export const metadata: Metadata = {
@@ -43,20 +45,22 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/brand/7awel - lettermark.svg" type="image/svg+xml" />
       </head>
-      <body className={`${poppins.variable} font-sans`}>
+      <body className={`${inter.variable} font-sans bg-muted`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <LanguageProvider>
             <HapticProvider>
               <AuthProvider>
-                <DataProvider>
-                  <ProfileSettingsProvider>
-                    <AppInitializer>
-                      <Suspense fallback={<LoadingFallback />}>
-                        <InnerLayout>{children}</InnerLayout>
-                      </Suspense>
-                    </AppInitializer>
-                  </ProfileSettingsProvider>
-                </DataProvider>
+                <SessionProvider>
+                  <DataProvider>
+                    <ProfileSettingsProvider>
+                      <AppInitializer>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <InnerLayout>{children}</InnerLayout>
+                        </Suspense>
+                      </AppInitializer>
+                    </ProfileSettingsProvider>
+                  </DataProvider>
+                </SessionProvider>
               </AuthProvider>
             </HapticProvider>
           </LanguageProvider>

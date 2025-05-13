@@ -2,6 +2,7 @@
 // Capacitor‑specific implementations. Import all plugins here so that the rest
 // of the code base remains platform‑agnostic.
 
+import { Capacitor } from '@capacitor/core';
 import { Device } from "@capacitor/device"
 import { Preferences } from "@capacitor/preferences"
 
@@ -24,7 +25,7 @@ export async function secureStoreGet(key: string) {
 }
 
 /** Utility to know if we run inside a native container. */
-export const isNative = true
+export const isNative = Capacitor.isNativePlatform();
 
 // ---------------------------------------------------------------------------
 // Biometrics (Fingerprint / FaceID)
@@ -182,6 +183,44 @@ export async function toggleFlashlight(on: boolean): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Email client handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Opens the appropriate email client on native platforms
+ * 
+ * @param email The email address to use (determines which app to open)
+ * @returns Promise<boolean> indicating success
+ */
+export async function openEmailClient(email: string): Promise<boolean> {
+  try {
+    const domain = email.split('@')[1]?.toLowerCase() || '';
+    const { App } = await import('@capacitor/app');
+    
+    // Try to open specific email apps based on domain
+    if (domain.includes('gmail')) {
+      // Try Gmail app first
+      const opened = await App.openUrl({ url: 'googlegmail://' });
+      if (opened) return true;
+    } else if (domain.includes('outlook') || domain.includes('hotmail')) {
+      // Try Outlook app first
+      const opened = await App.openUrl({ url: 'ms-outlook://' });
+      if (opened) return true;
+    } else if (domain.includes('yahoo')) {
+      // Try Yahoo Mail app
+      const opened = await App.openUrl({ url: 'ymail://' });
+      if (opened) return true;
+    }
+    
+    // Fallback to generic mailto (should open default mail app)
+    return await App.openUrl({ url: `mailto:${email}` });
+  } catch (err) {
+    console.error('[Capacitor] Error opening email client:', err);
+    return false;
   }
 }
 

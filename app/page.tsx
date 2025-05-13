@@ -56,24 +56,35 @@ function AnimatedCoins() {
 const splashSlides: ReelSlide[] = [
   {
     id: 1,
-    titleKey: "splash.secureWallet",
-    subtitleKey: "splash.secureWalletDesc",
-    content: <AnimatedCoins />,
-    contentType: "component"
+    titleKey: "splash.slide1.title",
+    subtitleKey: "splash.slide1.subtitle",
+    contentType: "image",
+    imageUrl: "/onboarding/1.png",
+    content: <></>
   },
   {
     id: 2,
-    titleKey: "splash.transactions",
-    subtitleKey: "splash.transactionsDesc",
-    imageUrl: "/splash/transactions.svg",
-    content: <></> // Empty fragment as fallback
+    titleKey: "splash.slide2.title",
+    subtitleKey: "splash.slide2.subtitle",
+    contentType: "image",
+    imageUrl: "/onboarding/2.png",
+    content: <></>
   },
   {
     id: 3,
-    titleKey: "splash.multiChain",
-    subtitleKey: "splash.multiChainDesc",
-    imageUrl: "/splash/multichain.svg",
-    content: <></> // Empty fragment as fallback
+    titleKey: "splash.slide3.title",
+    subtitleKey: "splash.slide3.subtitle",
+    contentType: "image",
+    imageUrl: "/onboarding/3.png",
+    content: <></>
+  },
+  {
+    id: 4,
+    titleKey: "splash.slide4.title",
+    subtitleKey: "splash.slide4.subtitle",
+    contentType: "image",
+    imageUrl: "/onboarding/4.png",
+    content: <></>
   }
 ]
 

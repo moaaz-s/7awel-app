@@ -37,28 +37,32 @@ export function ContactCard({
   // Wrap CardContainer in a div for accessibility props if onSelect is provided.
   const card = (
     <CardContainer
-      className={`flex items-center gap-3 p-3 ${className}`}
+      className={`${className}`}
       hoverable={!!onSelect}
       onClick={onSelect}
+      bordered={false}
+      shadow={false}
     >
-      <Avatar>
-        <AvatarFallback className="bg-gradient-to-r from-violet-500 to-blue-500 text-white">
-          {avatarFallback ? avatarFallback : contact.initial}
-        </AvatarFallback>
-      </Avatar>
-      <div>
-        {renderContent ? (
-          renderContent(contact)
-        ) : (
-          <>
-            <p className="font-medium">{contact.name}</p>
-            <PhoneNumber value={contact.phone} className={`${typography.small} ${typography.muted}`} />
-            {showEmail && contact.email && (
-              <p className={`${typography.small} ${typography.muted}`}>{contact.email}</p>
-            )}
-          </>
-        )}
-        {children}
+      <div className="flex items-center gap-3" 
+        onClick={onSelect}
+      >
+        <Avatar>
+          <AvatarFallback className="bg-gradient-to-r from-violet-500 to-blue-500 text-white">
+            {avatarFallback ? avatarFallback : contact.initial}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          {renderContent ? renderContent(contact) : (
+            <div>
+              <p className="font-medium">{contact.name}</p>
+              <PhoneNumber value={contact.phone} className={`${typography.small} ${typography.muted}`} />
+              {showEmail && contact.email && (
+                <p className={`${typography.small} ${typography.muted}`}>{contact.email}</p>
+              )}
+            </div>
+          )}
+          {children}
+        </div>
       </div>
     </CardContainer>
   )

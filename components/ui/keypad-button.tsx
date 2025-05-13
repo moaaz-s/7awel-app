@@ -35,8 +35,8 @@ export const KeypadButton = React.forwardRef<HTMLButtonElement, KeypadButtonProp
   ({ className, icon, variant = "ghost", active = false, action = false, size = "default", haptic = "light", children, ...props }, ref) => {
     // Keypad buttons are always rounded
     const sizeClasses = {
-      default: "w-12 h-12 text-2xl font-normal",
-      large: "w-16 h-16 text-3xl font-normal"
+      default: "w-16 h-16 text-2xl font-normal",
+      large: "w-20 h-20 text-3xl font-normal"
     }
     
     // Use primary color for action buttons
@@ -49,14 +49,16 @@ export const KeypadButton = React.forwardRef<HTMLButtonElement, KeypadButtonProp
       <Button
         className={cn(
           sizeClasses[size],
-          "rounded-full transition-all duration-150",
+          "rounded-full transition-all duration-150 shadow-none",
           action ? "bg-primary text-primary-foreground hover:bg-primary/90" : "",
+          !action && "hover:bg-muted",
           activeClass,
           className
         )}
         variant={variantToUse}
-        isIconOnly={!!icon && !!!children}
-        haptic={haptic}        ref={ref}
+        isIconOnly={!!icon && !children}
+        haptic={haptic}
+        ref={ref}
         {...props}
       >
         {icon ? <span>{icon}</span> : children}

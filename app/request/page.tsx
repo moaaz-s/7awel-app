@@ -24,54 +24,56 @@ export default function RequestPage() {
 
   return (
     <PageContainer title={t("request.title")} backHref="/receive">
-      {!requestGenerated ? (
-        <div className={spacing.section}>
-          <div className="text-center">
-            <h2 className={typography.h2}>{t("request.enterAmount")}</h2>
-            <p className={`${typography.small} ${typography.muted}`}>{t("request.howMuch")}</p>
-          </div>
-
-          <AmountInput onSubmit={handleAmountSubmit} />
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="w-full max-w-md space-y-6 text-center">
-            <div className={spacing.stack}>
-              <h2 className={typography.h2}>{t("request.paymentRequest")}</h2>
-              <p className={`${typography.small} ${typography.muted}`}>
-                {t("request.shareRequest")} ${amount}
-              </p>
+      <div className="flex-1 w-full">
+        {!requestGenerated ? (
+          <div className="flex flex-col flex-1 items-center justify-center">
+            <div className="text-center">
+              <h2 className={typography.h2}>{t("request.enterAmount")}</h2>
+              <p className={`${typography.small} ${typography.muted}`}>{t("request.howMuch")}</p>
             </div>
 
-            {qrData && <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />}
-
-            <CardContainer className="bg-gray-50">
+            <AmountInput onSubmit={handleAmountSubmit} />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="w-full max-w-md space-y-6 text-center">
               <div className={spacing.stack}>
-                <h3 className="font-medium">{t("request.requestLink")}</h3>
-                <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-md">
-                  <code className="text-xs truncate">{paymentRequestLink}</code>
-                  <CopyButton value={paymentRequestLink} className="flex-shrink-0" />
-                </div>
+                <h2 className={typography.h2}>{t("request.paymentRequest")}</h2>
+                <p className={`${typography.small} ${typography.muted}`}>
+                  {t("request.shareRequest")} ${amount}
+                </p>
               </div>
-            </CardContainer>
 
-            <div className="pt-4 space-y-3">
-              <ShareButton
-                title={t("request.paymentRequest")}
-                text={t("request.shareText", { amount: amount })}
-                url={paymentRequestLink}
-                fullWidth
-              >
-                {t("request.shareButton")}
-              </ShareButton>
+              {qrData && <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />}
 
-              <ButtonPrimary variant="outline" fullWidth href="/home">
-                {t("request.backToHome")}
-              </ButtonPrimary>
+              <CardContainer className="bg-gray-50">
+                <div className={spacing.stack}>
+                  <h3 className="font-medium">{t("request.requestLink")}</h3>
+                  <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-md">
+                    <code className="text-xs truncate">{paymentRequestLink}</code>
+                    <CopyButton value={paymentRequestLink} className="flex-shrink-0" />
+                  </div>
+                </div>
+              </CardContainer>
+
+              <div className="pt-4 space-y-3">
+                <ShareButton
+                  title={t("request.paymentRequest")}
+                  text={t("request.shareText", { amount: amount })}
+                  url={paymentRequestLink}
+                  fullWidth
+                >
+                  {t("request.shareButton")}
+                </ShareButton>
+
+                <ButtonPrimary variant="outline" fullWidth href="/home">
+                  {t("request.backToHome")}
+                </ButtonPrimary>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </PageContainer>
   )
 }

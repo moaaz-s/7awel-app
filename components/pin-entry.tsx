@@ -32,6 +32,7 @@ export function PinEntry({
   const [isPinComplete, setIsPinComplete] = useState(false)
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const showBiometricButton = showBiometric && bioAvailable && pin.length === 0
+  const [bioFailed, setBioFailed] = useState(false)
   
   // Handle key press animation
   const handleKeyPress = (key: string) => {
@@ -73,9 +74,19 @@ export function PinEntry({
       const ok = await authenticate("Authenticate to unlock")
       if (ok) {
         onComplete("bio")
+      } else {
+        setBioFailed(true)
       }
     }
   }
+
+  // Auto-run biometric prompt once on mount if allowed
+  useEffect(() => {
+    if (showBiometricButton && !bioFailed) {
+      handleBiometricAuth()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBiometricButton, bioFailed])
 
   // Handle keyboard input
   useEffect(() => {
@@ -110,21 +121,21 @@ export function PinEntry({
       return (
         <div 
           key={i} 
-          className={`h-3 w-3 rounded-full transition-all duration-300 ${filled 
+          className={`h-4 w-4 rounded-full transition-all duration-300 ${filled 
             ? "bg-primary scale-110" 
-            : "border border-input"}`}
+            : "border-2 border-input"}`}
           aria-hidden="true"
         />
       )
     })
-    return isRTL ? [...dots].reverse() : dots
+    return dots
   }
 
   return (
     // dir=ltr is intentional since the numbers are in english regardless of the language
-    <div className="w-full" dir="ltr">
+    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto min-h-[50vh]" dir="ltr">
       {/* PIN display */}
-      <div className="flex justify-center gap-3 mb-16" aria-live="polite" aria-atomic="true">
+      <div className="flex justify-center gap-5 py-12" aria-live="polite" aria-atomic="true">
         {renderPinDots()}
         <span className="sr-only">
           {pin.length > 0 
@@ -133,10 +144,11 @@ export function PinEntry({
         </span>
       </div>
 
-      {error && <p className="text-center text-sm text-destructive mb-4" aria-live="assertive">{error}</p>}
+      {error && <p className="text-center text-sm text-destructive mb-6" aria-live="assertive">{error}</p>}
 
-      {/* Number pad */}
-      <div className="grid grid-cols-3 gap-y-8 gap-x-12 mb-8" role="group" aria-label="PIN keypad">
+      {/* Number pad – hidden until biometric fails (if enabled) */}
+      {(!showBiometricButton || bioFailed) && (
+      <div className="grid grid-cols-3 gap-y-8 gap-x-8 mb-8" role="group" aria-label="PIN keypad">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <div className="flex items-center justify-center" key={num}>
             <KeypadButton
@@ -145,6 +157,7 @@ export function PinEntry({
               active={activeKey === num.toString()}
               aria-label={`Number ${num}`}
               haptic="light"
+              className="text-2xl font-light"
               icon={<span>{num}</span>}
             />
           </div>
@@ -159,7 +172,7 @@ export function PinEntry({
               active={activeKey === 'delete'}
               aria-label="Delete last digit"
               haptic="medium"
-              icon={<BackspaceIcon absoluteStrokeWidth={false} strokeWidth={2} size={18} />}
+              icon={<BackspaceIcon absoluteStrokeWidth={false} strokeWidth={2} size={20} />}
             />
           ) : showBiometricButton ? (
             <KeypadButton
@@ -168,10 +181,10 @@ export function PinEntry({
               active={activeKey === 'bio'}
               aria-label="Use biometric authentication"
               haptic="medium"
-              icon={<FingerprintIcon absoluteStrokeWidth={false} strokeWidth={2} size={18} />}
+              icon={<FingerprintIcon absoluteStrokeWidth={false} strokeWidth={2} size={20} />}
             />
           ) : (
-            <div className="w-12 h-12"></div> // Empty placeholder
+            <div className="w-16 h-16"></div> // Empty placeholder
           )}
         </div>
         
@@ -182,6 +195,7 @@ export function PinEntry({
             active={activeKey === '0'}
             aria-label="Number 0"
             haptic="light"
+            className="text-2xl font-light"
             icon={<span>0</span>}
           />
         </div>
@@ -192,32 +206,29 @@ export function PinEntry({
             <KeypadButton
               type="button"
               onClick={handleSubmit}
-              action={true}
-              active={activeKey === 'submit'}
+              disabled={!isPinComplete || isLoading}
               aria-label="Submit PIN"
-              haptic="success"
-              className="animate-fadeIn"
-              icon={<ArrowRightIcon absoluteStrokeWidth={false} strokeWidth={2} size={18} />}
+              haptic="heavy"
+              action={true}
+              className="bg-primary hover:bg-primary/90"
+              icon={<ArrowRightIcon absoluteStrokeWidth={false} strokeWidth={2} size={20} className="text-white" />}
             />
           ) : (
-            <div className="w-12 h-12"></div> // Empty placeholder
+            <div className="w-16 h-16"></div> // Empty placeholder
           )}
         </div>
       </div>
-
-      {/* Forgot PIN link */}
-      {showForgotPin && (
-        <div className="text-center mt-6">
-          <Button
-            variant="link"
-            className="text-primary focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={onForgotPin}
-            disabled={!onForgotPin || isLoading}
-            aria-label="Forgot PIN"
-          >
-            {t("auth.forgotPin")}
-          </Button>
-        </div>
+      )}
+      {/* Forgot PIN Button - Show only if enabled and biometric didn't handle it */}
+      {showForgotPin && onForgotPin && (!showBiometricButton || bioFailed) && (
+        <Button 
+          variant="link"
+          className="mt-6 text-sm mx-auto block text-primary font-medium"
+          onClick={onForgotPin}
+          disabled={isLoading}
+        >
+          {t('pinPad.forgotPinLink')}
+        </Button>
       )}
     </div>
   )

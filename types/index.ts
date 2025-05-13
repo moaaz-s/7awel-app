@@ -17,6 +17,16 @@ export type User = {
 export type TransactionType = "send" | "receive" | "payment" | "cash_out"
 export type TransactionStatus = "pending" | "completed" | "failed"
 
+// Promotion displayed in home page slider
+export interface Promotion {
+  id: string
+  title: string
+  description: string
+  imageUrl?: string
+  linkUrl: string
+  backgroundColor?: string
+}
+
 export type Transaction = {
   id: string
   name: string
@@ -68,18 +78,20 @@ export interface AppSettings {
   language: string
   theme: "light" | "dark"
   dailyLimit?: number
-}
-
-export interface EstimateGasRequest {
-  assetSymbol: string
-  to: string
-  amount: number
-}
-
-export interface GasEstimate {
-  assetSymbol: string
-  fee: number
-  total: number
+  notifications: {
+    pushEnabled: boolean
+    transactionAlerts: boolean
+    securityAlerts: boolean
+    promotions: boolean
+    emailNotifications: boolean
+    smsNotifications: boolean
+  }
+  security: {
+    biometricEnabled: boolean
+    twoFactorEnabled: boolean
+    transactionPin: boolean
+    inactivityTimeout?: number
+  }
 }
 
 // Generic API response wrapper (P3)
@@ -126,12 +138,29 @@ export type WalletBalance = AssetBalance
 // ----- Auth & OTP related (legacy) -----
 export interface LoginInitiationResponse {
   requiresOtp: boolean
+  /** Optional OTP expiry timestamp (unix ms) returned by server */
+  expires?: number
 }
 
 export interface OtpVerificationResponse {
   success: boolean
   phone: string
-  token: string
+  email: string
+  pinSet: boolean
+  phoneVerified: boolean
+  emailVerified: boolean
+  registrationComplete: boolean
+}
+
+export interface EmailVerificationResponse {
+  success: boolean
+  emailVerified: boolean
+}
+
+export interface SendEmailVerificationResponse {
+  token: string     // one-time verification token
+  code: string      // 6-digit fallback shown in email
+  expires: number   // unix ms expiry timestamp
 }
 
 // ----- Transaction & Pagination -----

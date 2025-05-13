@@ -29,7 +29,7 @@ export function useMobile() {
     const checkCapacitor = () => {
       const isCapacitorCheck =
         typeof window !== "undefined" &&
-        window.hasOwnProperty("Capacitor") &&
+        Object.prototype.hasOwnProperty.call(window, "Capacitor") &&
         (window as any).Capacitor?.isNative === true
 
       setIsCapacitor(isCapacitorCheck)

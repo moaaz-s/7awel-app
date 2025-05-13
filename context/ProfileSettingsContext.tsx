@@ -1,7 +1,6 @@
 "use client"
 
 import React, { createContext, useContext, useState, useCallback } from "react"
-import { toast } from "sonner"
 import { info, warn, error as logError } from "@/utils/logger"
 import { useLanguage } from "@/context/LanguageContext"
 
@@ -60,11 +59,11 @@ export function ProfileSettingsProvider({ children }: { children: React.ReactNod
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       info(`API: Updated notification setting ${key} to ${value}`);
-      toast.success(t("profilePages.settings.saveSuccess"));
+      logError(t("profilePages.settings.saveSuccess"));
     } catch (error) {
       logError(`Failed to update notification setting ${key}:`, error);
       setNotificationSettings(originalSettings);
-      toast.error(t("profilePages.settings.saveError"));
+      logError(t("profilePages.settings.saveError"));
       throw error;
     }
   }, [notificationSettings, t])
@@ -82,11 +81,11 @@ export function ProfileSettingsProvider({ children }: { children: React.ReactNod
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       info(`API: Updated security setting ${key} to ${value}`);
-      toast.success(t("profilePages.settings.saveSuccess"));
+      logError(t("profilePages.settings.saveSuccess"));
     } catch (error) {
       logError(`Failed to update security setting ${key}:`, error);
       setSecuritySettings(originalSettings);
-      toast.error(t("profilePages.settings.saveError"));
+      logError(t("profilePages.settings.saveError"));
       throw error;
     }
   }, [securitySettings, t])

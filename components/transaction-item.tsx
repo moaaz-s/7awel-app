@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Transaction } from "@/context/AppContext"
+import type { Transaction } from "@/types/index"
 import { SendIcon, ReceiveIcon, PaymentIcon, CashOutIcon } from "@/components/icons"
 
 interface TransactionItemProps {

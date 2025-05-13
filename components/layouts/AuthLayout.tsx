@@ -23,7 +23,7 @@ export function AuthLayout({ children, title, subtitle, backHref, backAction, fo
         action={undefined}
       />
 
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 flex">{children}</main>
 
       {footerContent && <footer className="p-4 text-center text-sm text-muted-foreground">{footerContent}</footer>}
     </div>

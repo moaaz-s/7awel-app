@@ -65,9 +65,10 @@ export function CashOutIcon(props: SVGProps<SVGSVGElement>) {
       strokeLinejoin="round"
       {...props}
     >
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-      <circle cx="12" cy="12" r="2" />
-      <path d="M6 12h.01M18 12h.01" />
+      <path d="M17 12h-14" />
+      <path d="M7 16l-4-4 4-4" />
+      <path d="M21 12v4a2 2 0 0 1-2 2H7" />
+      <path d="M21 8v4" />
     </svg>
   )
 }

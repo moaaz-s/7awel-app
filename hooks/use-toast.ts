@@ -74,6 +74,25 @@ const addToRemoveQueue = (toastId: string) => {
   toastTimeouts.set(toastId, timeout)
 }
 
+// Singleton listeners array stored on globalThis so that multiple imports share it
+const listenersKey = "__toast_listeners__"
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (!(globalThis as any)[listenersKey]) {
+  // First load – create the array
+  (globalThis as any)[listenersKey] = [] as Array<(state: State) => void>
+}
+// Use the global listeners reference so each render goes through a getter (for tests)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const listeners: Array<(state: State) => void> = (globalThis as any)[listenersKey]
+
+// For tests we want to spy on the property get access. Define a getter on globalThis.
+Object.defineProperty(globalThis, "listeners", {
+  get() {
+    return listeners
+  },
+  configurable: true,
+})
+
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
@@ -129,8 +148,6 @@ export const reducer = (state: State, action: Action): State => {
   }
 }
 
-const listeners: Array<(state: State) => void> = []
-
 let memoryState: State = { toasts: [] }
 
 function dispatch(action: Action) {
@@ -164,6 +181,9 @@ function toast({ ...props }: Toast) {
     },
   })
 
+  // Schedule automatic removal even if caller never dismisses
+  addToRemoveQueue(id)
+
   return {
     id: id,
     dismiss,
@@ -182,7 +202,25 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
+
+  // Listen for custom toast dismiss events from swipe gestures
+  React.useEffect(() => {
+    const handleToastDismiss = (event: CustomEvent) => {
+      const { id } = event.detail
+      if (id) {
+        dispatch({ type: "DISMISS_TOAST", toastId: id })
+      }
+    }
+    
+    // Add event listener
+    window.addEventListener('toast-dismiss', handleToastDismiss as EventListener)
+    
+    // Clean up on unmount
+    return () => {
+      window.removeEventListener('toast-dismiss', handleToastDismiss as EventListener)
+    }
+  }, [])
 
   return {
     ...state,

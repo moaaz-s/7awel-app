@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { SuccessLayout } from "@/components/layouts/SuccessLayout"
-import { CardContainer } from "@/components/ui/card-container"
-import { spacing, typography } from "@/components/ui-config"
-import { CheckCircleIcon } from "@/components/icons"
+import { ContentCard } from "@/components/ui/content-card"
+import { ContentCardRowItem } from "@/components/ui/content-card-row-item"
+import { DotLottieReact } from '@lottiefiles/dotlottie-react'
 import { transactionService } from "@/services/transaction-service"
 import { useLanguage } from "@/context/LanguageContext"
 
@@ -42,34 +42,40 @@ export default function TransactionSuccessPage() {
       shareTitle={t("transaction.transactionDetails")}
       shareText={shareText}
       shareButtonLabel={t("transaction.shareReceipt")}
-      icon={<CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto" />}
+      icon={
+        <DotLottieReact
+          src="/animations/tx success.lottie"
+          autoplay={true}
+          loop={false}
+          className="h-48 w-48 mx-auto"
+        />
+      }
     >
-      <CardContainer>
-        <div className={spacing.stack}>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("sendSuccess.amount")}</span>
-            <span className="font-medium">${details?.amount || "50.00"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("sendSuccess.to")}</span>
-            <span className="font-medium">{details?.recipient || "Sarah Johnson"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("sendSuccess.date")}</span>
-            <span className="font-medium">{details?.date || "April 11, 2025"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("sendSuccess.transactionId")}</span>
-            <span className="font-medium text-xs">{details?.reference || "TXN123456789"}</span>
-          </div>
+      <ContentCard elevated={true}>
+        <div className="p-4 space-y-4">
+          <ContentCardRowItem label={t("sendSuccess.amount")}>
+            ${details?.amount || "50.00"}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("sendSuccess.to")}>
+            {details?.recipient || "Sarah Johnson"}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("sendSuccess.date")}>
+            {details?.date || "April 11, 2025"}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("sendSuccess.transactionId")}>
+            <span className="text-xs">{details?.reference || "TXN123456789"}</span>
+          </ContentCardRowItem>
+          
           {details?.note && (
-            <div className="flex justify-between">
-              <span className={typography.muted}>{t("sendSuccess.note")}</span>
-              <span>{details.note}</span>
-            </div>
+            <ContentCardRowItem label={t("sendSuccess.note")}>
+              {details.note}
+            </ContentCardRowItem>
           )}
         </div>
-      </CardContainer>
+      </ContentCard>
     </SuccessLayout>
   )
 }

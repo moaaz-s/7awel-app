@@ -1,8 +1,10 @@
 "use client"
 
+import React from "react"; // Needed for Vitest JSX transform
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { en } from "@/locales/en"
 import { ar } from "@/locales/ar"
+import { getItem as getSecureItem, setItem as setSecureItem } from '@/utils/secure-storage'
 
 // Define languages and their properties
 export type Language = "en" | "ar"
@@ -25,28 +27,31 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [forceUpdateKey, setForceUpdateKey] = useState(0)
   const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE)
 
-  // Set language and save to localStorage
+  // Set language and save to device storage
   const setLanguage = (lang: Language) => {
     setLanguageState(lang)
-    localStorage.setItem("app-language", lang)
+    setSecureItem("app-language", lang)
     document.documentElement.lang = lang
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr"
     // Force a context re-render without page reload
     setForceUpdateKey(prev => prev + 1)
   }
 
-  // Initialize language from localStorage or use default
+  // Initialize language from secure storage or use default
   useEffect(() => {
-    const savedLanguage = localStorage.getItem("app-language") as Language
-    if (savedLanguage && (savedLanguage === "en" || savedLanguage === "ar")) {
-      setLanguageState(savedLanguage)
-      document.documentElement.lang = savedLanguage
-      document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr"
-    } else {
-      setLanguageState(DEFAULT_LANGUAGE)
-      document.documentElement.lang = DEFAULT_LANGUAGE
-      document.documentElement.dir = DEFAULT_LANGUAGE === "ar" ? "rtl" : "ltr"
+    const initializeLanguage = async () => {
+      const savedLanguage = await getSecureItem("app-language") as Language
+      if (savedLanguage && (savedLanguage === "en" || savedLanguage === "ar")) {
+        setLanguageState(savedLanguage)
+        document.documentElement.lang = savedLanguage
+        document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr"
+      } else {
+        setLanguageState(DEFAULT_LANGUAGE)
+        document.documentElement.lang = DEFAULT_LANGUAGE
+        document.documentElement.dir = DEFAULT_LANGUAGE === "ar" ? "rtl" : "ltr"
+      }
     }
+    initializeLanguage()
   }, [])
 
   // Translation function

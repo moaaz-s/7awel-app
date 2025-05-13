@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "fix": "eslint . --ext .ts,.tsx --max-warnings=0 --fix",
-    "test": "vitest"
+    "test": "vitest",
+    "test:auth": "vitest run --dir tests/auth",
+    "i18n:unused": "node scripts/find-unused-translations.cjs",
+    "i18n:missing": "node scripts/find-missing-translations.cjs"
   },
   "dependencies": {
     "@capacitor-community/contacts": "^7.0.0",
@@ -22,6 +25,7 @@
     "@capacitor/share": "^7.0.1",
     "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.9.1",
+    "@lottiefiles/dotlottie-react": "^0.13.5",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
@@ -81,6 +85,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
+    "@types/glob": "^8.1.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -88,9 +93,11 @@
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.2.4",
+    "glob": "^11.0.2",
     "jsdom": "^26.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
     "vitest": "^1.5.1"
   }
