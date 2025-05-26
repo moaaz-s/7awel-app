@@ -1,0 +1,168 @@
+Use case: 
+A forgotten pin reinitialization flow may be flowed.
+
+Condition:
+If the user declares pin forgotten in a usual session (not following a token re-acquisition through the phone/email OTP verification steps),
+a malicious user may somehow provoke this use case in order to get the PIN SETUP and set their own pin.
+
+Suggested solution:
+If the token is freshly acquired (not after a refresh), but after an acquisition flow triggered from the biggining (sign-in / login)
+It is ok to allow for a direct PIN SETUP. Otherwise, we should consider clearing the tokens and requesting a new token acquisition from the start.
+
+
+Here is a suggested plan (but flawed - needs revision)
+Here’s the full design for injecting “token‐freshness” into our central useTokenManager and making downstream code treat a stale token as invalid:
+
+1. Define a timestamp key & threshold
+• In constants/storage-keys.ts add:
+
+
+export const AUTH_TOKEN_TS = 'auth_token_ts';
+• In constants/auth-constants.ts (or a new file) define:
+
+
+export const TOKEN_FRESHNESS_MS = 5 * 60 * 1000;  // 5 minutes
+2. Stamp the token on set
+In useTokenManager.ts, inside setTokens(accessToken):
+
+
+if (accessToken) {
+  await setSecureItem(AUTH_TOKEN, accessToken);
+  await setSecureItem(AUTH_TOKEN_TS, Date.now().toString());
+  // …existing apiService/httpClient calls
+} else {
+  // clearing tokens also clear the timestamp
+  await removeSecureItem(AUTH_TOKEN_TS);
+  // …existing clear logic
+}
+3. Check freshness in checkTokens()
+At the top, after loading authToken:
+
+
+let valid = Boolean(authToken) && !isTokenExpired(authToken);
+
+if (valid) {
+  // read when it was issued
+  const tsStr = await getSecureItem(AUTH_TOKEN_TS);
+  const age = tsStr ? Date.now() - Number(tsStr) : Infinity;
+  if (age > TOKEN_FRESHNESS_MS) {
+    valid = false;
+  }
+}
+Then proceed with the existing “if expired & refreshToken exists → try refresh” logic.
+
+Optional immediate revocation
+If you want stale tokens to be wiped at once, drop in:
+
+
+if (!valid) {
+  await clearTokens();   // removes AUTH_TOKEN, REFRESH_TOKEN, AUTH_TOKEN_TS
+}
+right before you return { authToken: valid? authToken: null, isValid: valid }.
+
+4. Downstream behavior
+AuthContext HTTP‐interceptor sees isValid===false → logout() → full sign-in required.
+useAuthFlow.buildFlowCtx now treats tokenValid as false if the token is too old → user must re-OTP.
+In the Forgot-PIN flow, a truly fresh token (<5 min old) still lets users skip straight to new-PIN setup.
+5. Summary
+Stamp every new token with a timestamp.
+On each validity check, compare Date.now() - ts.
+Treat “too old” exactly like “expired”—optionally auto‐clear it.
+Consumers (AuthContext, flow engine) will automatically reroute users through the full OTP→email→token→PIN path when needed.
+Let me know if you’d like me to implement these changes now.
+
+
+---------------------------------------
+We seem to have mixed both: API client & Remote API in the same file.
+They should be seperated (the mocking only present in the remote API)
+API Client should be responsible for calling the remote API using HttpClient as a wrapper, right?
+
+Log register & login actions (normal, failed and different attempts)
+Log as much info as possible in the auth flow and in the actions taken within the app.
+
+------------------
+Phase 4: Capacitor & Cross-Platform Compatibility
+[ ] 4.1 Test secure storage implementation across web and native environments
+[ ] 4.2 Create platform-specific secure storage providers if needed
+[ ] 4.3 Implement SQL-type local database for persistent data
+[ ] 4.4 Update token handling to work with Capacitor's secure storage
+Phase 5: Testing & Integration with Auth Context
+[ ] 5.1 Update AuthContext to work with new token acquisition flow
+[ ] 5.2 Ensure proper AuthStatus state transitions during token acquisition
+[ ] 5.3 Test full authentication flow from phone verification to token acquisition
+[ ] 5.4 Fix any AuthStatus enum mismatches between implementation files
+[ ] 5.5 Verify integration with AppInitializer navigation (per memory note)
+
+
+
+---------------
+Hardcoded texts:
+- secondaryTimer text in ActionPopup.tsx
+- 
+-----------------
+I was on a page /transactions/[id] which requires authentication to access.
+But the page didn't render for some reason.
+The spinner kept spinning,
+I noticed this error in the console log:
+
+Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.
+
+What should we do if this happens in production?
+
+------------------
+Use ui-config.tsx across the app to standarize styles.
+---------------------------------------
+Add specific documentation for:
+- API files & httpClient
+- deep link management (useDeepLink)
+- send transaction flow
+- scanning flow (?)
+
+------------------
+Create helper scripts to:
+- detect unused translations
+- detect missing translations
+- detect unused icons 
+- detect hardcoded errors (not using error codes)
+---------------------
+Show the progress of the disappearance for toasts.
+
+------------------
+Missing individual contact page (?)
+Within a specific transaction, the user can click on the name of the other party
+Once clicked a new page opens with details about the person and history.
+------------------
+Add note to transaction in /transaction/[id]
+Requires api endpiont & a database structure.
+------------------
+If session ends on a specific page that requires context, and context is not found the UI will look broken.
+------------------
+On commit we need to make multiple checks: we're not using certain web3auth functions in a malicious way, we're not using the authtoken outside its scope file in a malicious way (no code in the page is fetching the token from storage etc...)
+------------------
+In auth-step-handlers we're not properly handling errors, not checking for errorCode responses which are localized
+------------------
+Authcontext has logout & signout functions .. are they used? why the duplication?
+do we take into consideration softlogout (only terminate session) & hardlogout (erase all data from phone)?
+------------------
+Continue service implementation for:
+- devices & logout.
+
+------------------
+Retry OTP when expired automatically (if user entered an expired one?)
+--------------------
+API-service may still hold tyles that require migration
+-------------------
+TESTS:
+- Unit tests for pin & token utilities
+- Unit tests for all services (pin, session, token, http)
+- Unit tests for api services (pay attention to auth service, it has few calls using unauthenticated client)
+
+
+
+
+
+
+
+
+
+

@@ -13,7 +13,7 @@ import React, {
 } from 'react';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine';
-import { info, warn } from "@/utils/logger";
+import { error as logError, info, warn } from "@/utils/logger";
 import * as storage from "@/utils/storage";
 import { Session, SessionStatus } from "@/context/auth/auth-types";
 import { SESSION_TTL_MS, SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
@@ -50,30 +50,63 @@ export function SessionProvider({ children }: ProviderProps) {
     return SessionStatus.Active;
   };
 
+  async function voidSession(): Promise<boolean> {
+    try {
+      setSession(null);
+      await storage.clearSession();
+    } catch (e) {
+      logError("Error: Couldn't void session", e)
+      return false;
+    }
+
+    return true;
+  }
+
+  // Load existing session; returns true if a valid session was set
+  async function initiateSession(): Promise<boolean> {
+    const saved = await storage.getSession();
+    if (saved) {
+      if (saved.expiresAt < Date.now()) {
+        await voidSession();
+        return false;
+      }
+      setSession(saved);
+      return true;
+    }
+    return false;
+  }
+
+  // Create and persist a new session; returns true on success
+  async function createSession(): Promise<boolean> {
+    const newSession: Session = {
+      isActive: true,
+      lastActivity: Date.now(),
+      expiresAt: Date.now() + SESSION_TTL_MS,
+      pinVerified: true
+    };
+    setSession(newSession);
+    await storage.setSession(newSession);
+    return true;
+  }
+
   // Initialize session from storage
   useEffect(() => {
-    const init = async () => {
-      const savedSession = await storage.getSession();
-      if (savedSession) {
-        // Check if session has expired
-        if (savedSession.expiresAt < Date.now()) {
-          await storage.clearSession();
-          setSession(null);
-          return;
-        }
-        setSession(savedSession);
-      }
-    };
-    init();
+    initiateSession();
   }, []);
 
-  // Monitor auth status changes
+  // Monitor auth status and manage session lifecycle
   useEffect(() => {
-    if (authStatus !== AuthStatus.Authenticated) {
-      setSession(null)
-      storage.clearSession()
-    }
-  }, [authStatus])
+    (async () => {
+      if (authStatus === AuthStatus.Authenticated) {
+        const loaded = await initiateSession();
+        if (!loaded) {
+          await createSession();
+        }
+      } else if (authStatus === AuthStatus.Unauthenticated) {
+        await voidSession();
+      }
+    })();
+  }, [authStatus]);
 
   // Activity monitoring
   useEffect(() => {
@@ -111,16 +144,7 @@ export function SessionProvider({ children }: ProviderProps) {
     const isValid = await validatePin(pin);
     if (!isValid) return false;
 
-    const newSession: Session = {
-      isActive: true,
-      lastActivity: Date.now(),
-      expiresAt: Date.now() + SESSION_TTL_MS,
-      pinVerified: true
-    };
-    
-    setSession(newSession);
-    await storage.setSession(newSession);
-    return true;
+    return await createSession();
   };
 
   const lock = async () => {

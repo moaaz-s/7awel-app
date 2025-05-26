@@ -31,13 +31,6 @@
     --button-height-md: 2.75rem; /* 44px */
     --button-height-lg: 3.25rem; /* 52px */
     --button-transition: 150ms cubic-bezier(0.16, 1, 0.3, 1);
-
-    /* Chart colors (optional, can refine) */
-    --chart-1: 250 100% 61%;
-    --chart-2: 207 100% 73%;
-    --chart-3: 160 80% 60%;
-    --chart-4: 40 90% 60%;
-    --chart-5: 0 80% 70%;
   }
 
   .dark {
@@ -60,13 +53,6 @@
     --border: 240 4% 15%;
     --input: 240 4% 15%;
     --ring: 250 100% 70%;
-
-    /* Chart colors (optional, can refine) */
-    --chart-1: 250 100% 70%;
-    --chart-2: 207 100% 80%;
-    --chart-3: 160 70% 70%;
-    --chart-4: 40 80% 70%;
-    --chart-5: 0 70% 80%;
   }
 }
 

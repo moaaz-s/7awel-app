@@ -11,6 +11,7 @@
 
 // Authentication
 export const AUTH_TOKEN = 'auth_token';
+export const REFRESH_TOKEN = 'refresh_token';
 
 // User preferences
 export const LANGUAGE = 'language';
@@ -20,6 +21,7 @@ export const CURRENCY = 'currency';
 // Security
 export const PIN_HASH = 'pin_hash';
 export const BIOMETRICS_ENABLED = 'biometrics_enabled';
+export const PIN_FORGOT = 'pin_forgot';
 
 // Session
 export const SESSION = 'session';
@@ -28,11 +30,13 @@ export const SESSION_EXP = 'session_exp';
 // Generic helper: collect all constants in one object if needed elsewhere
 export const StorageKeys = {
   AUTH_TOKEN,
+  REFRESH_TOKEN,
   LANGUAGE,
   THEME,
   CURRENCY,
   PIN_HASH,
   BIOMETRICS_ENABLED,
+  PIN_FORGOT,
   SESSION,
   SESSION_EXP,
 } as const;

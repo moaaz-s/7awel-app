@@ -6,16 +6,17 @@
  */
 import { useCallback } from 'react';
 import { info, warn, error as logError } from '@/utils/logger';
-import { hashPin, verifyPin } from '@/utils/pin-utils';
-import { 
-  getPinHash, 
-  clearPinHash, 
-  setPinHash, 
-  getPinAttempts, 
-  incrementPinAttempts, 
-  resetPinAttempts 
-} from '@/utils/storage';
-import { MAX_PIN_ATTEMPTS } from '@/constants/auth-constants';
+import {
+  setPin as serviceSetPin,
+  validatePin as serviceValidatePin,
+  clearPin as serviceClearPin,
+  isPinSet as serviceIsPinSet,
+  resetAttempts as serviceResetAttempts,
+  getLockUntil as serviceGetLockUntil,
+  isLocked as serviceIsLocked,
+  clearLockout as serviceClearLockout
+} from '@/utils/pin-service';
+import { isPinForgotten, setPinForgotten } from '@/utils/storage';
 
 /**
  * Custom hook for managing PIN authentication.
@@ -39,15 +40,10 @@ export const usePinManager = (
    */
   const setPin = useCallback(async (pin: string): Promise<boolean> => {
     info('[PinManager] Setting PIN...');
-    
     try {
-      const hash = await hashPin(pin);
-      await setPinHash(hash);
-      await resetPinAttempts();
-      
+      await serviceSetPin(pin);
       info('[PinManager] PIN set successfully.');
       dispatch({ type: 'SET_STEP_DATA', payload: { pinSet: true } });
-      
       return true;
     } catch (err) {
       logError('[PinManager] Failed to set PIN:', err);
@@ -65,40 +61,20 @@ export const usePinManager = (
    */
   const validatePin = useCallback(async (pin: string): Promise<boolean> => {
     info('[PinManager] Validating PIN');
-    
     try {
-      const storedHash = await getPinHash();
-      
-      if (!storedHash) {
-        warn('[PinManager] No PIN hash found.');
-        return false;
-      }
-      
-      const isValidPin = await verifyPin(pin, storedHash);
-      
-      if (isValidPin) {
+      const result = await serviceValidatePin(pin);
+      if (result.valid) {
         info('[PinManager] PIN validation successful.');
-        await resetPinAttempts();
-        // session activation moved to step handlers
         return true;
-      } else {
-        info('[PinManager] PIN validation failed.');
-        const attempts = await incrementPinAttempts();
-        
-        if (attempts >= MAX_PIN_ATTEMPTS) {
-          info('[PinManager] Max PIN attempts reached. Locking account.');
-          dispatch({ type: 'LOCKOUT', payload: t('errors.MAX_PIN_ATTEMPTS_REACHED') });
-        } else {
-          dispatch({ 
-            type: 'SET_FLOW_ERROR', 
-            payload: t('errors.PIN_INVALID_ATTEMPTS', { count: (MAX_PIN_ATTEMPTS - attempts).toString() }) 
-          });
-        }
-        
-        return false;
       }
+
+      dispatch({
+        type: 'SET_FLOW_ERROR',
+        payload: t('errors.PIN_INVALID', { count: (result.attemptsRemaining || 0).toString() })
+      });
+      return false;
     } catch (err: any) {
-      logError('[PinManager] Error validating PIN:', err.message);
+      logError('[PinManager] Error validating PIN:', err);
       return false;
     }
   }, [dispatch, t]);
@@ -112,9 +88,9 @@ export const usePinManager = (
       if (process.env.NODE_ENV !== 'production' && pin === "1234") {
         return true;
       }
-      
-      const storedHash = await getPinHash();
-      return storedHash ? await verifyPin(pin, storedHash) : false;
+      // We want a simple boolean check; ignore lock/attempts logic here
+      const validRes = await serviceValidatePin(pin);
+      return validRes.valid;
     } catch (err) {
       logError('[PinManager] Error checking PIN:', err);
       return false;
@@ -126,14 +102,8 @@ export const usePinManager = (
    * 
    * @returns Promise resolving to true if PIN exists, false otherwise
    */
-  const isPinSet = useCallback(async (): Promise<boolean> => {
-    try {
-      const hash = await getPinHash();
-      return !!hash;
-    } catch (err) {
-      logError('[PinManager] Error checking if PIN is set:', err);
-      return false;
-    }
+  const isPinSet = useCallback((): Promise<boolean> => {
+    return serviceIsPinSet();
   }, []);
 
   /**
@@ -143,12 +113,9 @@ export const usePinManager = (
    */
   const clearPin = useCallback(async (): Promise<boolean> => {
     try {
-      await clearPinHash();
-      await resetPinAttempts();
-      
+      await serviceClearPin();
       info('[PinManager] PIN cleared successfully.');
       dispatch({ type: 'SET_STEP_DATA', payload: { pinSet: false } });
-      
       return true;
     } catch (err) {
       logError('[PinManager] Error clearing PIN:', err);
@@ -156,11 +123,29 @@ export const usePinManager = (
     }
   }, [dispatch]);
 
+  /**
+   * Resets the PIN attempt counter without affecting the PIN itself.
+   * @returns Promise resolving when attempts are reset
+   */
+  const resetAttempts = useCallback(async (): Promise<void> => {
+    await serviceResetAttempts();
+  }, []);
+
   return {
     setPin,
     validatePin,
     checkPin,
     isPinSet,
-    clearPin
+    clearPin,
+    resetAttempts,
+    // Lockout utilities
+    getLockUntil: serviceGetLockUntil,
+    isLocked: serviceIsLocked,
+    clearLockout: serviceClearLockout,
+    isPinForgotten,
+    setPinForgotten: async () => {
+      await setPinForgotten();
+      await clearPin();
+    }
   };
 }

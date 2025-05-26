@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { SuccessLayout } from "@/components/layouts/SuccessLayout"
-import { CardContainer } from "@/components/ui/card-container"
-import { spacing, typography } from "@/components/ui-config"
+import { spacing } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
 import { CheckCircleIcon } from "@/components/icons/ui-icons"
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
 
 interface ScanPaymentDetails {
   amount: string
@@ -30,9 +31,9 @@ export default function ScanSuccessPage() {
 
   return (
     <SuccessLayout
-      title={t("Payment Successful!")}
-      description={t("Your payment has been processed successfully.")}
-      primaryActionText={t("Back to Home")}
+      title={t("sendSuccess.title")}
+      description={t("sendSuccess.description")}
+      primaryActionText={t("common.backHome")}
       primaryActionHref="/home"
       shareTitle={t("transaction.transactionDetails")}
       shareText={t("transaction.shareReceipt")}
@@ -40,26 +41,25 @@ export default function ScanSuccessPage() {
       shareButtonLabel={t("transaction.shareReceipt")}
       icon={<CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto" />}
     >
-      <CardContainer>
+      <ContentCard elevated={true} padding="sm">
         <div className={spacing.stack}>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("transaction.amount")}</span>
-            <span className="font-medium">${details?.amount || "25.00"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("Paid to")}</span>
-            <span className="font-medium">{details?.recipient || "Coffee Shop"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("transaction.date")}</span>
-            <span className="font-medium">{details?.date || "April 11, 2025"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className={typography.muted}>{t("transaction.reference")}</span>
-            <span className="font-medium text-xs">{details?.reference || "TXN123456789"}</span>
-          </div>
+          <ContentCardRowItem label={t("transaction.amount")}>
+            ${details?.amount}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("transaction.recipient")}>
+            {details?.recipient}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("transaction.date")}>
+            {details?.date}
+          </ContentCardRowItem>
+          
+          <ContentCardRowItem label={t("transaction.reference")}>
+            {details?.reference}
+          </ContentCardRowItem>
         </div>
-      </CardContainer>
+      </ContentCard>
     </SuccessLayout>
   )
 }

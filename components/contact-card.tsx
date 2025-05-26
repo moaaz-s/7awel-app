@@ -1,18 +1,16 @@
 "use client"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { CardContainer } from "@/components/ui/card-container"
+import { Avatar } from "@/components/ui/avatar"
 import { typography } from "@/components/ui-config"
 import { PhoneNumber } from "@/components/ui/phone-number"
 import type { Contact } from "@/types"
-import type { ReactNode } from "react"
+import { ContentCardItem } from "@/components/ui/cards/content-card-item"
 
 interface ContactCardProps {
   contact: Contact
   onSelect?: () => void
   className?: string
   showEmail?: boolean
-  avatarFallback?: React.ReactNode
   children?: React.ReactNode
   renderContent?: (contact: Contact) => React.ReactNode
 }
@@ -22,62 +20,47 @@ export function ContactCard({
   onSelect,
   className = "",
   showEmail = false,
-  avatarFallback,
   children,
   renderContent,
 }: ContactCardProps) {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (onSelect && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault()
-      onSelect()
-    }
-  }
+  // Create avatar component for the contact
+  const contactAvatar = (
+    <Avatar 
+      size="md" 
+      border
+      initials={contact.initial}
+    />
+  )
 
-  // CardContainer does not support tabIndex, role, aria-pressed, or onKeyDown directly.
-  // Wrap CardContainer in a div for accessibility props if onSelect is provided.
-  const card = (
-    <CardContainer
-      className={`${className}`}
-      hoverable={!!onSelect}
-      onClick={onSelect}
-      bordered={false}
-      shadow={false}
-    >
-      <div className="flex items-center gap-3" 
-        onClick={onSelect}
-      >
-        <Avatar>
-          <AvatarFallback className="bg-gradient-to-r from-violet-500 to-blue-500 text-white">
-            {avatarFallback ? avatarFallback : contact.initial}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          {renderContent ? renderContent(contact) : (
-            <div>
-              <p className="font-medium">{contact.name}</p>
-              <PhoneNumber value={contact.phone} className={`${typography.small} ${typography.muted}`} />
-              {showEmail && contact.email && (
-                <p className={`${typography.small} ${typography.muted}`}>{contact.email}</p>
-              )}
-            </div>
-          )}
-          {children}
-        </div>
+  // Create custom content renderer for the contact details
+  const contactContent = () => (
+    <div className="flex items-center gap-3">
+      {contactAvatar}
+      <div>
+        {renderContent ? renderContent(contact) : (
+          <div>
+            <p className="font-medium">{contact.name}</p>
+            <PhoneNumber value={contact.phone} className={`${typography.small} ${typography.muted}`} />
+            {showEmail && contact.email && (
+              <p className={`${typography.small} ${typography.muted}`}>{contact.email}</p>
+            )}
+          </div>
+        )}
+        {children}
       </div>
-    </CardContainer>
+    </div>
   )
 
-  return onSelect ? (
-    <div
-      tabIndex={0}
-      role="button"
-      aria-pressed={false}
-      onKeyDown={handleKeyDown}
-      style={{ outline: "none" }}
-    >
-      {card}
-    </div>
-  ) : (
-    card
+  // Use ContentCardItem with custom content renderer
+  const card = (
+    <ContentCardItem
+      className={className}
+      onClick={onSelect}
+      interactive={!!onSelect}
+      renderContent={contactContent}
+    />
   )
+
+  // ContentCardItem already handles accessibility for interactive elements
+  return card
 }

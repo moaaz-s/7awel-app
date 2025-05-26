@@ -4,8 +4,8 @@
  * Centralized type definitions for authentication-related components and data.
  * This helps with maintainability by ensuring type consistency across the auth system.
  */
-import { AuthStep } from '@/constants/auth-steps';
-import { AuthFlowType, FlowStep, FlowCtx } from '@/constants/auth-flows';
+import { AuthStep } from '@/context/auth/flow/flowSteps';
+import { AuthFlowType, FlowStep, FlowCtx } from '@/context/auth/flow/flowsOrchestrator';
 import { OtpChannel } from '@/services/api-service';
 import { AuthStatus } from './auth-state-machine';
 import { ErrorCode } from '@/types/errors';
@@ -62,7 +62,12 @@ export interface AuthResponse {
  * Data shared between authentication steps
  */
 export interface StepData {
+  /** Full phone number including country code */
   phone?: string;
+  /** Country dialing code, e.g. "+1" */
+  countryCode?: string;
+  /** National phone number without country code, e.g. "5551234567" */
+  phoneNumber?: string;
   channel?: OtpChannel;
   email?: string;
   /** Whether the user has successfully entered their PIN this session */
@@ -72,6 +77,12 @@ export interface StepData {
   emailVerified?: boolean;
   phoneValidated?: boolean;
   registrationComplete?: boolean;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  country?: string;
+  dob?: string;
+  gender?: string;
   emailOtpExpires?: number; // Timestamp for when the email OTP expires
   phoneOtpExpires?: number; // Timestamp for when the phone OTP expires
   otpExpires?: number; // Generic OTP expiry, can be used for phone or email
@@ -84,11 +95,21 @@ export interface StepData {
  * Payload data passed to authentication step handlers
  */
 export interface FlowPayload {
+  /** Country dialing code for phone entry */
+  countryCode?: string;
+  /** National phone number for phone entry */
+  phoneNumber?: string;
   phone?: string;
   channel?: OtpChannel;
   otp?: string;
   email?: string;
   emailCode?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  country?: string;
+  dob?: string;
+  gender?: string;
   pin?: string;
   step?: AuthStep;
   data?: StepData;
@@ -145,7 +166,6 @@ export type AuthAction =
   | { type: 'SET_STEP_DATA'; payload: StepData }
   | { type: 'SET_FLOW_ERROR'; payload: string | null }
   | { type: 'END_FLOW' }
-  | { type: 'AUTH_ERROR'; payload: string }
   | { type: 'CLEAR_ERROR' }
   | { type: 'LOGOUT' }
   | { type: 'LOCKOUT'; payload?: string };
@@ -188,12 +208,11 @@ export interface AuthContextType {
   forgotPin: () => Promise<void>;
   
   // Session management
-  logout: () => Promise<void>;
-  lock: () => void;
+  softLogout: () => Promise<void>;
+  hardLogout: () => Promise<void>;
   resendEmailOtp: (email?: string) => Promise<void>;
 
-  // Token management
-  setAuthToken: (token: string | null) => Promise<void>;
-  clearAuthToken: () => Promise<void>;
-  getAuthToken: () => Promise<string | null>;
+  // Authentication actions
+  signIn: (phone: string, email: string) => Promise<boolean>;
+  resetAttempts: () => Promise<void>;
 }

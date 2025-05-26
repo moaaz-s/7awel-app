@@ -6,10 +6,8 @@ import type {
   AssetBalance,
   AppSettings,
   ApiResponse,
-  LoginInitiationResponse,
+  OtpInitiationResponse,
   OtpVerificationResponse,
-  EmailVerificationResponse,
-  SendEmailVerificationResponse,
   TransactionFilters,
   PaginationRequest,
   Paginated,
@@ -25,7 +23,7 @@ import { getOtpAttempts, incrementOtpAttempts, resetOtpAttempts, getOtpLockUntil
 import { info, warn, error as logError } from "@/utils/logger"
 import { generateDeviceFingerprint, getDeviceInfo } from "@/utils/device-fingerprint"
 import { emailVerificationTemplate } from "@/utils/email-templates"
-import { createToken, isTokenExpired } from '@/utils/token';
+import { createToken, isTokenExpired } from '@/utils/token-utils';
 import { string } from "zod";
 
 // Define types needed for the API service
@@ -75,7 +73,7 @@ const mockPromotions: Record<string, Promotion[]> = {
       id: "promo1",
       title: "Invite friends, earn $50",
       description: "Earn $50 for each friend you invite by 26 March. T&C apply",
-      imageUrl: "/promotional/gift-box.png", 
+      imageUrl: "https://placehold.co/400x400/orange/white?text=Gift+Box", 
       linkUrl: "/referral",
       backgroundColor: "bg-white"
     },
@@ -99,7 +97,7 @@ const mockPromotions: Record<string, Promotion[]> = {
       id: "promo1",
       title: "ادعُ أصدقائك, واحصل على 50$",
       description: "احصل على 50$ لكل صديق تدعوه قبل 26 مارس. تطبق الشروط والأحكام",
-      imageUrl: "/promotional/gift-box.png", 
+      imageUrl: "https://placehold.co/400x400/orange/white?text=Gift+Box", 
       linkUrl: "/referral",
       backgroundColor: "bg-white"
     },
@@ -158,7 +156,7 @@ class ApiService {
   constructor() {
     // Configure mock behavior from environment variables
     this.mockLatencyMs = parseInt(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS || process.env.VITE_MOCK_LATENCY_MS || '800', 10);
-    this.mockErrorRate = parseFloat(process.env.MOCK_ERROR_RATE || '0.5'); // 5% by default
+    this.mockErrorRate = parseFloat(process.env.MOCK_ERROR_RATE || '0.05'); // 5% by default
     this.shouldSimulateErrors = process.env.SIMULATE_ERRORS !== 'false';
     
     // Storage for pending OTPs
@@ -247,7 +245,7 @@ class ApiService {
   /**
    * Get info required for logging in: OTP or password
    * 
-   * Must be authenticated with either login token
+   * Must be authenticated
    */
   private requiresAuth(): boolean {
     return !this.authToken
@@ -266,15 +264,6 @@ class ApiService {
     const promotionsForLocale = mockPromotions[supportedLocale] || [];
 
     return this.respondOk(promotionsForLocale);
-  }
-
-  /**
-   * Default authentication method check
-   * 
-   * Returns true if we need to show/request an authentication prompt
-   */
-  requiresAuthentication(): boolean {
-    return this.requiresAuth()
   }
 
   /**
@@ -317,7 +306,7 @@ class ApiService {
     medium: 'phone' | 'email',
     value: string,
     channel: OtpChannel = OtpChannel.WHATSAPP // not used for the mock, but should be used in production
-  ): Promise<ApiResponse<LoginInitiationResponse>> {
+  ): Promise<ApiResponse<OtpInitiationResponse>> {
     try {
       // Get device info to include with request, device should be the same and during the operation.
       // If the device changes, the operation should be aborted.
@@ -447,19 +436,24 @@ class ApiService {
     value: string
   ): Promise<ApiResponse<{ available: boolean }>> {
     await this.simulateNetworkDelay();
-    if (this.simulateRandomError()) {
-      return this.handleError(`Simulated error checking availability for ${medium}`, null);
+    
+    try {
+      if (this.simulateRandomError()) {
+        return this.handleError(`Simulated error checking availability for ${medium}`, null);
+      }
+      if (!value) {
+        return this.handleError(`${medium} is required.`, ErrorCode.OTP_MISSING_MEDIUM);
+      }
+      if (medium === 'phone' && this.mockRegistered.phones.includes(value)) {
+        return this.handleError('Phone already registered.', ErrorCode.PHONE_ALREADY_REGISTERED);
+      }
+      if (medium === 'email' && this.mockRegistered.emails.includes(value)) {
+        return this.handleError('Email already registered.', ErrorCode.EMAIL_ALREADY_REGISTERED);
+      }
+      return this.respondOk({ available: true });
+    } catch (error) {
+      return this.handleError('Failed to check availability', error);
     }
-    if (!value) {
-      return this.handleError(`${medium} is required.`, ErrorCode.OTP_MISSING_MEDIUM);
-    }
-    if (medium === 'phone' && this.mockRegistered.phones.includes(value)) {
-      return this.handleError('Phone already registered.', ErrorCode.PHONE_ALREADY_REGISTERED);
-    }
-    if (medium === 'email' && this.mockRegistered.emails.includes(value)) {
-      return this.handleError('Email already registered.', ErrorCode.EMAIL_ALREADY_REGISTERED);
-    }
-    return this.respondOk({ available: true });
   }
 
   /**
@@ -550,47 +544,37 @@ class ApiService {
         return this.handleError('Failed to get transactions');
       }
 
-      // Generate mock transactions
-      const mockTransactions: Transaction[] = [
-        {
-          id: 'tx1',
-          name: 'John Doe',
-          amount: 100,
-          date: new Date().toISOString(),
-          type: 'send' as TransactionType,
-          status: 'completed' as TransactionStatus,
-          reference: 'TX123456',
-          recipientId: 'user123',
-        },
-        {
-          id: 'tx2',
-          name: 'Coffee Shop',
-          amount: 5.75,
-          date: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-          type: 'payment' as TransactionType,
-          status: 'completed' as TransactionStatus,
-          reference: 'TX234567',
-        },
-        {
-          id: 'tx3',
-          name: 'Grocery Store',
-          amount: 35.5,
-          date: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-          type: 'payment' as TransactionType,
-          status: 'completed' as TransactionStatus,
-          reference: 'TX345678',
-        },
-        {
-          id: 'tx4',
-          name: 'Jane Smith',
-          amount: 50,
-          date: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-          type: 'send' as TransactionType,
-          status: 'completed' as TransactionStatus,
-          reference: 'TX456789',
-          recipientId: 'user456',
+      // Generate dynamic mock transactions for the past 90 days
+      const mockTransactions: Transaction[] = [];
+      const transactionTypes: TransactionType[] = ['send', 'receive', 'payment', 'cashOut'];
+      const statuses: TransactionStatus[] = ['completed', 'pending', 'failed'];
+      const names = ['John Doe', 'Coffee Shop', 'Grocery Store', 'Jane Smith', 'Gas Station', 'Amazon', 'Uber', 'Netflix', 'Spotify', 'Sarah Johnson', 'Michael Chen', 'Emma Wilson', 'David Kim'];
+      
+      for (let i = 0; i < 90; i++) {
+        // Some days have multiple transactions, some have one, some have none
+        const transactionsPerDay = Math.random() < 0.1 ? 0 : Math.random() < 0.7 ? 1 : Math.floor(Math.random() * 3) + 2;
+        
+        for (let j = 0; j < transactionsPerDay; j++) {
+          const date = new Date(Date.now() - i * 86400000 - Math.floor(Math.random() * 86400000));
+          const type = transactionTypes[Math.floor(Math.random() * transactionTypes.length)];
+          const name = names[Math.floor(Math.random() * names.length)];
+          const amount = type === 'receive' ? Math.floor(Math.random() * 500) + 50 : -(Math.floor(Math.random() * 100) + 5);
+          
+          mockTransactions.push({
+            id: `tx-${i}-${j}-${Date.now()}`,
+            name,
+            amount: type === 'receive' ? Math.abs(amount) : amount,
+            date: date.toISOString(),
+            type,
+            status: statuses[Math.floor(Math.random() * statuses.length)],
+            reference: `TX${Math.floor(Math.random() * 1000000)}`,
+            recipientId: type === 'send' ? `user${Math.floor(Math.random() * 1000)}` : undefined,
+            senderId: type === 'receive' ? `user${Math.floor(Math.random() * 1000)}` : undefined,
+            fee: Math.random() < 0.5 ? parseFloat((Math.random() * 2).toFixed(2)) : undefined,
+            note: Math.random() < 0.3 ? `Note for ${name}` : undefined
+          });
         }
-      ];
+      }
 
       // Apply pagination
       const limit = pagination?.limit || 20;
@@ -1212,13 +1196,13 @@ class ApiService {
    * @param {string} phone Verified phone number
    * @param {string} email Verified email address
    * @param {DeviceInfo} deviceInfo Device information for security purposes
-   * @returns {Promise<ApiResponse<{token: string}>>} API response with authentication token
+   * @returns {Promise<ApiResponse<{accessToken: string, refreshToken: string}>>} API response with authentication token
    */
   public async acquireToken(
     phone: string,
     email: string,
     deviceInfo: any
-  ): Promise<ApiResponse<{token: string}>> {
+  ): Promise<ApiResponse<{accessToken: string, refreshToken: string}>> {
     await this.simulateNetworkDelay();
     
     if (this.simulateRandomError()) {
@@ -1240,7 +1224,10 @@ class ApiService {
     this.setToken(token);
     
     info(`[ApiService] Auth token acquired for ${phone}`);
-    return this.respondOk({ token });
+    // Generate a mock refresh token (7d expiry)
+    const refreshToken = createToken({ exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    // Return both access and refresh tokens
+    return this.respondOk({ accessToken: token, refreshToken });
   }
 
   /**
@@ -1272,6 +1259,43 @@ class ApiService {
     // Use a realistic JWT structure with header.payload.signature
     // The header and signature parts are simplified for mocking
     return `eyJhbGciOiJIUzI1NiJ9.${encodedPayload}.MOCK_SIGNATURE`;
+  }
+
+  /**
+   * Mock endSession to revoke on server-side
+   */
+  /**
+   * Mock endSession to revoke on server-side
+   */
+  async endSession(): Promise<ApiResponse<void>> {
+    await this.simulateNetworkDelay();
+    
+    try {
+      if (this.simulateRandomError()) {
+        return this.handleError('Mock endSession error');
+      }
+      
+      this.authToken = null;
+      return this.respondOk({});
+    } catch (error) {
+      return this.handleError('Failed to end session', error);
+    }
+  }
+
+  /**
+   * Mock refresh token endpoint
+   * @param refreshToken Current refresh token
+   */
+  async refreshToken(refreshToken: string): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
+    await this.simulateNetworkDelay();
+    if (this.simulateRandomError()) {
+      return this.handleError('Mock refresh token error');
+    }
+    // Generate new tokens (1h access, 7d refresh)
+    const newAccess = createToken({ exp: Date.now() + 60 * 60 * 1000 });
+    const newRefresh = createToken({ exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    this.authToken = newAccess;
+    return this.respondOk({ accessToken: newAccess, refreshToken: newRefresh });
   }
 
   /* --------------------------------------------------

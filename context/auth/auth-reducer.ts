@@ -6,9 +6,9 @@
  */
 import { AuthStatus } from './auth-state-machine';
 import { AuthState, AuthAction } from './auth-types';
-import { AUTH_STEP_AUTHENTICATED, AUTH_STEP_LOCKED } from '@/constants/auth-steps';
-import { getFlowTypeSteps, AuthFlowType } from '@/constants/auth-flows';
-import { error, info } from '@/utils/logger';
+import { AUTH_STEP_AUTHENTICATED } from '@/context/auth/flow/flowSteps';
+import { getFlowTypeSteps, AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
+import { error as logError, info } from '@/utils/logger';
 
 /**
  * Initial authentication state
@@ -61,7 +61,7 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
       }
       
       if (flowSteps.length === 0) {
-        console.error('[Auth Reducer] No valid steps for flow:', type);
+        logError('[Auth Reducer] No valid steps for flow:', type);
         return {
           ...state,
           error: 'Failed to initialize authentication flow'
@@ -117,7 +117,7 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         };
       } else if (nextIndex === null) {
           // No valid next step and no explicit step provided - this is an error condition
-          error('[Auth Reducer] No valid next step found and no explicit step provided', {
+          logError('[Auth Reducer] No valid next step found and no explicit step provided', {
             currentStep: state.currentStep,
             currentIndex: state.activeFlow?.currentIndex,
             flowType: state.activeFlow?.type,
@@ -181,12 +181,6 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         currentStep: null
       };
 
-    case 'AUTH_ERROR':
-      return {
-        ...state,
-        error: action.payload
-      };
-
     case 'CLEAR_ERROR':
       return {
         ...state,
@@ -206,15 +200,6 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
       return {
         ...state,
         authStatus: action.payload
-      };
-
-    case 'LOCKOUT':
-      return {
-        ...state,
-        authStatus: AuthStatus.Locked,
-        currentStep: AUTH_STEP_LOCKED,
-        activeFlow: null,
-        error: action.payload || "Account locked"
       };
 
     case 'LOGOUT':

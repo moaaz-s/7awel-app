@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { CloseIcon } from "@/components/icons"
 import { Promotion } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
-import { ContentCard } from "@/components/ui/content-card"
+import { ContentCard } from "@/components/ui/cards/content-card"
 
 interface PromotionalSliderProps {
   promotions: Promotion[]
@@ -48,7 +48,7 @@ export function PromotionalSlider({
     <div className="flex flex-col items-center">
       <ContentCard
         className={cn("relative h-[100px]", className)}
-        noPadding
+        padding="none"
         elevated
       >
         {/* Close button */}

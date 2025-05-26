@@ -13,7 +13,8 @@ import { loadPlatform } from '@/platform';
 import { getItem, setItem, removeItem } from '@/utils/secure-storage';
 import { info, error } from "@/utils/logger";
 import type { Session } from '@/context/auth/auth-types';
-import { SESSION_TTL_MS, SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
+import { SESSION_TTL_MS, SESSION_IDLE_TIMEOUT_MS, MAX_PIN_ATTEMPTS } from '@/constants/auth-constants';
+import { PIN_FORGOT } from '@/constants/storage-keys';
 
 /**
  * Retrieves the stored PIN hash.
@@ -51,16 +52,20 @@ export const clearPinHash = async (): Promise<void> => {
   await setPinLockUntil(0);
 };
 
-/**
- * Clears all authentication-related flags and data from storage.
- * @returns Promise<void>
- */
-export const clearAll = async (): Promise<void> => {
+export const setPinForgotten = async (): Promise<void> => {
   if (typeof window === 'undefined') return;
-  
-  // Clear secure storage items
-  await clearPinHash();
-  await clearSession();
+  await setItem(PIN_FORGOT, 'true');
+};
+
+export const clearPinForgotten = async (): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  await removeItem(PIN_FORGOT);
+};
+
+export const isPinForgotten = async (): Promise<boolean> => {
+  if (typeof window === 'undefined') return false;
+  const forgotten = await getItem(PIN_FORGOT);
+  return !!forgotten;
 };
 
 // ---------------- Session Management ----------------
@@ -133,8 +138,9 @@ export const getPinAttempts = async (): Promise<number> => {
 export const incrementPinAttempts = async (): Promise<number> => {
   const current = await getPinAttempts();
   const next = current + 1;
-  await setItem(PIN_ATTEMPTS_KEY, String(next));
-  return next;
+  const attemps = Math.min(next, MAX_PIN_ATTEMPTS);
+  await setItem(PIN_ATTEMPTS_KEY, String(attemps));
+  return attemps;
 };
 
 export const resetPinAttempts = async (): Promise<void> => {

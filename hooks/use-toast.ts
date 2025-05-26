@@ -13,6 +13,8 @@ const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
   id: string
+  // Optional custom icon to display at top of toast
+  icon?: React.ReactNode
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement

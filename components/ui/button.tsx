@@ -19,8 +19,10 @@ const buttonVariants = cva(
         outline: "border border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary/15 text-foreground hover:bg-secondary/25",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline p-0 h-auto",
+        link: "text-primary p-0 h-auto",
         gradient: "bg-gradient-to-r from-primary to-secondary text-primary-foreground hover:opacity-90",
+        // Destructive gradient for important actions that need attention
+        "destructive-gradient": "bg-gradient-to-r from-destructive to-destructive/80 text-destructive-foreground hover:opacity-90",
         // New variants for themed buttons
         white: "bg-white text-black hover:bg-white/90", // Light button for dark backgrounds
         black: "bg-black/80 text-white hover:bg-black/70 backdrop-blur-sm", // Dark button
@@ -75,6 +77,7 @@ export interface ButtonProps
   href?: string;
   withoutShadow?: boolean;
   fullWidth?: boolean;
+  destructive?: boolean; // Shorthand prop to enable destructive mode
   onClick?: React.MouseEventHandler<Element>;
 }
 
@@ -102,11 +105,11 @@ const ButtonContent: React.FC<{
   }
   
   return (
-    <span className="flex items-center justify-between gap-2">
+    <span className="flex-1 flex items-center justify-between gap-2">
       {icon && iconPosition === 'left' && !isIconOnly && 
         <span className="inline-flex">{icon}</span>
       }
-      {(!isIconOnly || !icon) && <span>{children}</span>}
+      {(!isIconOnly || !icon) && <span className="flex-1">{children}</span>}
       {icon && iconPosition === 'right' && !isIconOnly && 
         <span className="inline-flex">{icon}</span>
       }
@@ -120,7 +123,7 @@ const ButtonContent: React.FC<{
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ 
     className, 
-    variant, 
+    variant = 'default', 
     size, 
     radius, 
     shadow,
@@ -135,6 +138,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     iconPosition = 'left',
     href,
     withoutShadow = false,
+    destructive = false,
     ...props 
   }, ref) => {
     const effectiveShadow = withoutShadow ? "none" : shadow;
@@ -149,10 +153,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       onClick?.(e);
     };
     
+    // Apply destructive variant if destructive prop is true
+    const effectiveVariant = destructive && variant === 'default' ? 'destructive' : 
+                           destructive && variant === 'gradient' ? 'destructive-gradient' : variant;
+    
     // Common button props
     const buttonProps = {
       className: cn(buttonVariants({ 
-        variant, 
+        variant: effectiveVariant, 
         size, 
         radius, 
         shadow: effectiveShadow,

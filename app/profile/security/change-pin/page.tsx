@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ProfileLayout } from '@/components/layouts/ProfileLayout';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from 'sonner';
 import { PinChange } from '@/components/auth/PinChange';
+import { PageContainer } from '@/components/layouts/page-container';
 
 export default function ChangePinScreen() {
   const { t } = useLanguage();
@@ -23,7 +23,7 @@ export default function ChangePinScreen() {
   const title = t('pinPad.changeTitle');
 
   return (
-    <ProfileLayout 
+    <PageContainer 
       title={title}
       backHref="/profile/security" 
     >
@@ -33,6 +33,6 @@ export default function ChangePinScreen() {
             onCancel={handleCancel}
          />
       </div>
-    </ProfileLayout>
+    </PageContainer>
   );
 }

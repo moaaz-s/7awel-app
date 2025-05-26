@@ -1,27 +1,27 @@
 "use client"
 
 import { useState } from "react"
-import { PageContainer } from "@/components/ui/page-container"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { PageContainer } from "@/components/layouts/page-container"
+import { Avatar } from "@/components/ui/avatar"
 import { AmountInput } from "@/components/amount-input"
 import { useData } from "@/context/DataContext"
-import { CardContainer } from "@/components/ui/card-container"
-import { ContentCard } from "@/components/ui/content-card"
+import { ContentCard } from "@/components/ui/cards/content-card"
 import { FormField } from "@/components/ui/form-field"
-import { spacing, typography } from "@/components/ui-config"
 import { SearchInput } from "@/components/ui/search-input"
 import { Input } from "@/components/ui/input"
 import { useLanguage } from "@/context/LanguageContext"
-import { useSendMoneyFlow } from "@/hooks/use-transaction-flow"
+import { useSendTransaction } from "@/context/transactions/SendTransactionContext"
 import { ContactCard } from "@/components/contact-card"
 import { RecapLayout } from "@/components/layouts/RecapLayout"
 import { PhoneNumber } from "@/components/ui/phone-number"
-import { ContentCardRowItem } from "@/components/ui/content-card-row-item"
+import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
+import { spacing } from "@/components/ui-config"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function SendMoneyPage() {
-  const { contacts, balance, formatCurrency } = useData()
+  const { contacts, balance, formatCurrency, isLoadingContacts } = useData()
   const { t } = useLanguage()
-  const { step, state, error, isLoading, setRecipient, setAmount, setNote, handleConfirm, goBack } = useSendMoneyFlow()
+  const { step, state, error, isLoading, setRecipient, setAmount, setNote, confirmSend, goBack } = useSendTransaction()
 
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -47,7 +47,7 @@ export default function SendMoneyPage() {
   if (step === "recipient" || step === "amount") {
     return (
       <PageContainer title={getTitle()} backHref="/home">
-        <div className="flex-1 flex flex-col justify-between w-full max-w-md mx-auto text-center">
+        <div className="flex-1 flex flex-col justify-between w-full max-w-md mx-auto">
           {step === "recipient" && (
             <div className="space-y-4">
               <SearchInput 
@@ -57,11 +57,18 @@ export default function SendMoneyPage() {
                 className="mb-4"
               />
 
-              <ContentCard elevated={true}>
-                <div className="p-4">
-                  <h3 className="text-base font-medium text-muted-foreground mb-3">
-                    {searchQuery ? t("transaction.searchResults") : t("transaction.recent")}
-                  </h3>
+              {/* Loading indicator - shows while fetching fresh data */}
+              {isLoadingContacts && contacts.length > 0 && (
+                <div className="flex justify-center py-2">
+                  <LoadingSpinner size="sm" />
+                </div>
+              )}
+
+              <ContentCard 
+                title={searchQuery ? t("transaction.searchResults") : t("transaction.recent")}
+                elevated={true} 
+                padding="sm">
+                <div>
                   <div className="space-y-1">
                     {filteredContacts.length > 0 ? (
                       filteredContacts.map((contact) => (
@@ -79,11 +86,11 @@ export default function SendMoneyPage() {
           {step === "amount" && state.recipient && (
             <div className="flex flex-col items-center space-y-8">
               <div className="text-center">
-                <Avatar className="mx-auto h-20 w-20">
-                  <AvatarFallback className="bg-gradient-to-br from-violet-600 to-blue-400 text-white text-2xl">
-                    {state.recipient.initial}
-                  </AvatarFallback>
-                </Avatar>
+                <Avatar 
+                  size="lg" 
+                  className="mx-auto" 
+                  initials={state.recipient.initial}
+                />
                 <h2 className="mt-3 text-xl font-medium">{state.recipient.name}</h2>
                 <PhoneNumber value={state.recipient.phone} className="text-sm text-muted-foreground" />
               </div>
@@ -108,23 +115,31 @@ export default function SendMoneyPage() {
         title={getTitle()}
         backHref={step === "confirmation" ? undefined : "/home"} // Only use URL for home navigation
         onBackClick={step === "confirmation" ? goBack : undefined} // Use goBack function for step navigation
-        onConfirm={handleConfirm}
+        onConfirm={confirmSend}
         confirmText={t("transaction.send", { amount: state.amount })}
         isLoading={isLoading}
         error={error}
       >
         {/* Content for the RecapLayout */}
         <div className="flex flex-col space-y-4">
-          <ContentCard elevated={false}>
-            <ContentCardRowItem label={t("transaction.to_label")}>{state.recipient.name}</ContentCardRowItem>
+          <ContentCard elevated={false} padding="sm">
+            <ContentCardRowItem label={t("transaction.to_label")}>
+              {state.recipient.name}
+            </ContentCardRowItem>
           </ContentCard>
-          <ContentCard elevated={false}>
-            <ContentCardRowItem label={t("transaction.reception_date_label")}>{t("transaction.reception_immediate")}</ContentCardRowItem>
+          <ContentCard elevated={false} padding="sm">
+            <ContentCardRowItem label={t("transaction.reception_date_label")}>
+              {t("transaction.reception_immediate")}
+            </ContentCardRowItem>
           </ContentCard>
-          <ContentCard elevated={false}>
-            <div className="space-y-4">
-              <ContentCardRowItem label={t("transaction.amount")}>${state.amount}</ContentCardRowItem>
-              <ContentCardRowItem label={t("transaction.fee_label")}>{t("transaction.fee_offered")}</ContentCardRowItem>
+          <ContentCard elevated={false} padding="sm">
+            <div className={spacing.stack_sm}>
+              <ContentCardRowItem label={t("transaction.amount")}> 
+                ${state.amount}
+              </ContentCardRowItem>
+              <ContentCardRowItem label={t("transaction.fee_label")}>
+                {t("transaction.fee_offered")}
+              </ContentCardRowItem>
             </div>
           </ContentCard>
           <ContentCard>

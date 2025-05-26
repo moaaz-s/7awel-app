@@ -8,14 +8,15 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ProfileLayout } from "@/components/layouts/ProfileLayout"
+import { Avatar } from "@/components/ui/avatar"
 import { useLanguage } from "@/context/LanguageContext"
 import { PhoneNumber } from "@/components/ui/phone-number"
-import { ProfileSection } from "@/components/profile/profile-section"
 import { Form, FormField } from "@/components/ui/form"
 import { useData } from "@/context/DataContext"
 import type { User } from "@/types" // Import User type
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { Loader2 } from "lucide-react"
+import { PageContainer } from "@/components/layouts/page-container"
 
 // Schema remains the same
 const formSchema = z.object({
@@ -100,27 +101,25 @@ export default function PersonalInfoPage() {
     }
   }
 
+  // Loading state
   if (!user) {
     return (
-      <ProfileLayout title={t("profilePages.personalInfo.title")} backHref="/profile">
-        <div className="flex justify-center items-center h-64">
-          <p>{t("common.loading")}</p> 
-        </div>
-      </ProfileLayout>
+      <div className="flex flex-col items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     )
   }
 
   return (
-    <ProfileLayout title={t("profilePages.personalInfo.title")} backHref="/profile">
+    <PageContainer title={""} backHref="/profile" backIconStyle="cross">
       <div className="space-y-6">
         <div className="flex justify-center">
           <div className="relative">
-            <Avatar className="h-24 w-24">
-              <AvatarFallback className="bg-gradient-to-r from-violet-500 to-blue-500 text-white text-2xl">
-                {/* Use user's first/last name for initials */}
-                {getInitials(user.firstName, user.lastName)}
-              </AvatarFallback>
-            </Avatar>
+            <Avatar 
+              size="xl" 
+              initials={getInitials(user.firstName, user.lastName)}
+              fallbackClassName="bg-gradient-to-r from-violet-500 to-blue-500"
+            />
             <Button size="sm" className="absolute bottom-0 right-0 h-8 w-8 rounded-full p-0 bg-violet-600">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 <path d="M12 20h9" />
@@ -132,30 +131,28 @@ export default function PersonalInfoPage() {
         </div>
 
         <Form form={form} onSubmit={onSubmit} className="space-y-6">
-            <ProfileSection title="">
-              <div className="space-y-4 bg-white p-4 rounded-lg border">
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormField name="firstName" label={t("profilePages.personalInfo.firstName")}>
-                        <Input {...form.register("firstName")} />
-                    </FormField>
-                    <FormField name="lastName" label={t("profilePages.personalInfo.lastName")}>
-                        <Input {...form.register("lastName")} />
-                    </FormField>
-                 </div>
+            <ContentCard title="">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField name="firstName" label={t("profilePages.personalInfo.firstName")}>
+                      <Input {...form.register("firstName")} />
+                  </FormField>
+                  <FormField name="lastName" label={t("profilePages.personalInfo.lastName")}>
+                      <Input {...form.register("lastName")} />
+                  </FormField>
+                </div>
 
-                <FormField name="email" label={t("profilePages.personalInfo.email")}>
-                  <Input type="email" {...form.register("email")} placeholder={t("profilePages.personalInfo.emailOptional")} />
-                </FormField>
+              <FormField name="email" label={t("profilePages.personalInfo.email")}>
+                <Input type="email" {...form.register("email")} placeholder={t("profilePages.personalInfo.emailOptional")} />
+              </FormField>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t("profilePages.personalInfo.phone")}</Label>
-                  <div className="relative">
-                    <PhoneNumber value={phone} className="block w-full p-4 rounded-md border bg-muted opacity-75" />
-                    <p className="text-xs text-muted-foreground">{t("profilePages.personalInfo.cantChange")}</p>
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">{t("profilePages.personalInfo.phone")}</Label>
+                <div className="relative">
+                  <PhoneNumber value={phone} className="block w-full p-4 rounded-md border bg-muted opacity-75" />
+                  <p className="text-xs text-muted-foreground">{t("profilePages.personalInfo.cantChange")}</p>
                 </div>
               </div>
-            </ProfileSection>
+            </ContentCard>
 
             {/* Button disabled if not dirty (no changes) or submitting */}
             <Button type="submit" variant="gradient" className="w-full" disabled={!form.formState.isDirty || form.formState.isSubmitting}>
@@ -163,6 +160,6 @@ export default function PersonalInfoPage() {
             </Button>
         </Form>
       </div>
-    </ProfileLayout>
+    </PageContainer>
   )
 }

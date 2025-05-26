@@ -25,13 +25,16 @@ export const en = {
     optional: "Optional",
     resendCodeCountdown: "Resend code in {seconds} seconds",
     resendCode: "Resend code",
-    backToHome: "Back to Home",
     backHome: "Back to Home",
     language: "Language",
     helpCenter: "Help Center",
     changeAvatar: "Change avatar",
     firstName: "First Name",
     lastName: "Last Name",
+    address: "Address",
+    country: "Country",
+    dob: "Date of Birth",
+    gender: "Gender",
     email: "Email",
     phoneNumber: "Phone Number",
     cantChangePhone: "Phone number cannot be changed. Contact support for assistance.",
@@ -42,7 +45,25 @@ export const en = {
     copied: "Copied!",
     copiedDescription: "Text copied to clipboard",
     search: "Search",
-    noResults: "No results found"
+    noResults: "No results found",
+    months: {
+      january: "January",
+      february: "February",
+      march: "March",
+      april: "April",
+      may: "May",
+      june: "June",
+      july: "July",
+      august: "August",
+      september: "September",
+      october: "October",
+      november: "November",
+      december: "December"
+    },
+    genderOptions: {
+      male: "Male",
+      female: "Female",
+    }
   },
   auth: {
     signIn: "Welcome back!",
@@ -113,19 +134,18 @@ export const en = {
     initializing: "Initializing...",
     loading: "Loading...",
   },
-  placeholders: {
-    email: "name@example.com",
-    phone: "Enter your phone number",
-    firstName: "Enter your first name",
-    lastName: "Enter your last name",
-    search: "Search...",
-    pin: "Enter your PIN",
-    amount: "0.00"
+  logout: {
+    confirmTitle: "Logout Confirmation",
+    confirmDescription: "Are you sure you want to logout? You'll need to sign in again to access your account.",
+    confirm: "Yes, Logout", 
+    successTitle: "Logged Out",
+    successDescription: "You have been successfully logged out.",
+    errorDescription: "Failed to logout. Please try again."
   },
   profile: {
     title: "Profile",
     personalInfo: "Personal Information",
-    notifications: "Notifications",
+    notifications: "Notifications", 
     security: "Security Settings",
     language: "Language",
     helpCenter: "Help Center",
@@ -154,6 +174,8 @@ export const en = {
     more: "More",
   },
   transaction: {
+    today_label: "Today",
+    yesterday_label: "Yesterday", 
     amount: "Amount",
     fee_label: "Fee",
     to_label: "To",
@@ -202,8 +224,15 @@ export const en = {
     enterAmount: "Enter Amount",
     addNote: "Add a note (optional)",
     from: "From",
+    addingNote: "Adding note",
+    enterTransactionNote: "Adding note descriptoin",
+    sentShareText: "I sent ${amount} to {recipient}",
+    requestShareTitle: "Request Money",
+    requestShareText: "I'm requesting ${amount} on 7awel account",
+    recipient: "recipient",
   },
   qr: {
+    scanning: "Scanning in progress",
     yourQrCode: "Your QR Code",
     shareQr: "Share this code to receive money instantly",
     payflowId: "Your PayFlow ID",
@@ -211,38 +240,6 @@ export const en = {
     requestAmount: "Request Specific Amount",
     positionQr: "Position the QR code within the frame",
     scanToPay: "Scan to Pay",
-  },
-  pinEntry: {
-    title: "Enter PIN",
-    description: "Unlock your wallet with your 4-digit PIN",
-    submit: "Unlock",
-    pinEntry: "تم إدخال {count} من {total}",
-    enterDigits: "أدخلك رمزك المكون من {count} أرقام",
-    errorInvalid: "Incorrect PIN. Please try again.",
-    errorLength: "Please enter a 4-digit PIN",
-  },
-  uiErrors: {
-    somethingWrong: "Something went wrong",
-    tryAgain: "Please try again",
-    insufficientFunds: "Insufficient funds. Please enter a smaller amount.",
-    invalidAmount: "Please enter a valid amount.",
-    transactionFailed: "Transaction failed. Please try again later.",
-    pinsDontMatch: "PINs don't match. Please try again.",
-    copyFailedTitle: "Copy Failed",
-    copyFailedDescription: "Failed to copy text",
-    phoneTooLong: "Phone number is too long",
-    phoneInvalid: "Phone number is invalid",
-    phoneRequired: "Phone number is required",
-  },
-  onboarding: {
-    sendMoney: "Send Money Anywhere",
-    sendMoneyDesc: "Fast and secure transfers to any wallet",
-    receivePayments: "Receive Payments Easily",
-    receivePaymentsDesc: "Accept crypto from anyone, anywhere",
-    trackTransactions: "Track All Transactions",
-    trackTransactionsDesc: "Full history and insights of your activity",
-    cashOut: "Cash Out Easily",
-    cashOutDesc: "Convert to local currency whenever needed",
   },
   cashOut: {
     title: "Cash Out",
@@ -262,7 +259,6 @@ export const en = {
     instructionsDetails: "Present this reference code at any participating ATM or agent location to receive your cash.",
     successTitle: "Cash Out Successful",
     successDesc: "Your cash out request has been processed.",
-    backToHome: "Back to Home",
     shareTitle: "Share Cash Out Details",
     shareText: "I just cashed out {amount} via {method} using PayFlow!",
     shareTextDefault: "I just cashed out using PayFlow!",
@@ -289,12 +285,11 @@ export const en = {
     shareRequest: "Share this request to receive",
     requestLink: "Request Link",
     shareButton: "Share Request",
-    backToHome: "Back to Home",
+    shareText: "Send me ${amount}",
     sent: "Request Sent!",
     sentDescription: "Your payment request has been sent successfully.",
     recipient: "Recipient",
-    notification:
-      "The recipient will be notified about your request. You'll receive a notification when they complete the payment.",
+    notification:"The recipient will be notified about your request. You'll receive a notification when they complete the payment.",
   },
   profilePages: {
     personalInfo: {
@@ -360,18 +355,6 @@ export const en = {
       faq: "FAQ"
     },
   },
-  changePin: {
-    errorIncorrectCurrent: 'Incorrect current PIN.',
-    errorMismatch: 'New PINs do not match.',
-    success: 'PIN changed successfully!',
-    errorGeneric: 'Failed to change PIN. Please try again.',
-    enterCurrentPinTitle: 'Enter Current PIN',
-    enterNewPinTitle: 'Enter New PIN',
-    confirmNewPinTitle: 'Confirm New PIN',
-    enterCurrentPinPrompt: 'Please enter your current 4-digit PIN.',
-    enterNewPinPrompt: 'Enter your new 4-digit PIN.',
-    confirmNewPinPrompt: 'Confirm your new 4-digit PIN.',
-  },
   validation: {
     firstNameRequired: "First name is required.",
     lastNameRequired: "Last name is required.",
@@ -415,16 +398,33 @@ export const en = {
       subtitle: "Send money to friends in seconds"
     }
   },
-  countrySearch: {
-    search: "Search for a country",
-    noResults: "No countries found",
-    selectCountry: "Select a country",
-  },
-  phoneValidation: {
-    invalidNumber: "Please enter a valid phone number",
-    invalidCountryCode: "Please select a valid country code",
-    enterNumber: "Enter your phone number",
-    enterCountryCode: "Select your country code",
+  uiErrors: {
+    somethingWrong: "Something went wrong",
+    tryAgain: "Please try again",
+    transactionFailed: "Transaction failed. Please try again later.",
+    pinsDontMatch: "PINs don't match. Please try again.",
+    copyFailedTitle: "Copy Failed",
+    copyFailedDescription: "Failed to copy text",
+
+    // Phone
+    phoneMissing: "Phone number is missing.",
+    phoneTooLong: "Phone number is too long",
+    phoneInvalid: "Phone number is invalid",
+    phoneRequired: "Phone number is required",
+
+    // Email
+    missingEmail: "Email is missing.",
+
+    // Send
+    invalidAmount: "Please enter a valid amount.",
+    insufficientFunds: "Insufficient funds. Please enter a smaller amount.",
+    noteTooLong: "Note cannot exceed {maxLength} characters.",
+
+    // Auth
+    unexpectedStepTitle: "Unexpected error",
+    unexpectedStepSubtitle: "Something went wrong. Please try again.",
+    unexpectedStepRestart: "Restart",
+    
   },
   errors: {
     // Error codes - General
@@ -434,49 +434,58 @@ export const en = {
     SESSION_EXPIRED: "Your session has expired. Please sign in again.",
     
     // Error codes - Phone
+    PHONE_MISSING: "Phone number is missing.",
     PHONE_INVALID: "Please enter a valid phone number.",
     PHONE_REQUIRED: "Phone number is required.",
     PHONE_NOT_REGISTERED: "This phone number is not registered.",
     PHONE_ALREADY_REGISTERED: "This phone number is already registered.",
-    EMAIL_ALREADY_REGISTERED: "This email is already registered.",
-    TOO_MANY_ATTEMPTS: "Too many attempts. Please try again later.",
     
     // Error codes - OTP
     OTP_INVALID: "Invalid verification code. Please try again.",
     OTP_EXPIRED: "Verification code has expired. Please request a new one.",
     OTP_REQUIRED: "Verification code is required.",
-    TOO_MANY_OTP_ATTEMPTS: "Too many verification attempts. Please try again later.",
-    
+    OTP_LOCKED: "Verification code has been locked. Please try again later.",
+    OTP_RESEND_FAILED: "Failed to resend verification code. Please try again later.",
+
     // Error codes - PIN
     PIN_INVALID: "Invalid PIN. Please try again.",
     PIN_REQUIRED: "PIN is required.",
     PIN_MISMATCH: "PINs don't match. Please try again.",
     TOO_MANY_PIN_ATTEMPTS: "Too many PIN attempts. Please try again later.",
     TOKEN_SAVE_FAILED: "Failed to save authentication session.",
+    PIN_NOT_SET: "PIN is not set",
+    PIN_UNEXPECTED_ISSUE: "Unexpected issue with PIN. Please try again.",
+    PIN_SET_FAILED: "Failed to set PIN. Please try again.",
     
     // Email verification errors
-    VERIFICATION_NOT_FOUND: "Verification not found. Please request a new code.",
-    VERIFICATION_EXPIRED: "Verification code has expired. Please request a new code.",
-  },
-  
-  // Email verification translations
-  verifyEmail: {
-    title: "Check your email",
-    description: "We've sent a verification email. Check your inbox including spam and junk folders, enter the code below, and you'll be directed back to the app.",
-    verifying: "Verifying your email...",
-    verified: "Email verified!",
-    redirecting: "Redirecting you back to the app...",
-    linkInvalid: "This link is invalid or has been used from a different device.",
-    codeInvalid: "Invalid or expired code. Please try again.",
-    success: "Email verification successful!",
-    successDescription: "Your email address has been verified.",
-    resendSuccess: "Verification email resent",
-    resendError: "Couldn't resend email",
-    checkInbox: "Please check your inbox for the verification code.",
-    noEmailStored: "No email address found. Please contact support.",
-    tryAgain: "Please try again later.",
-    goToInbox: "Go to inbox",
-    skipForNow: "Skip for now"
+    EMAIL_ALREADY_REGISTERED: "This email is already registered.",
+    EMAIL_OTP_VERIFICATION_FAILED: "Email OTP verification failed.",
+
+    // AUTH
+    AUTH_INIT_FAILED: "Failed to initialize authentication flow.",
+    AUTH_FAILED: "Authentication failed. Please try again.",
+    
+    // VALIDATION
+    VALIDATION_FAILED: "Validation failed.",
+    VALIDATION_PHONE_REQUIRED: "Phone number is required.",
+    VALIDATION_PHONE_INVALID: "Invalid phone number format.",
+    VALIDATION_FIRST_NAME_REQUIRED: "First name is required.",
+    VALIDATION_LAST_NAME_REQUIRED: "Last name is required.",
+    VALIDATION_NAME_REQUIRED: "Name is required.",
+    VALIDATION_NAME_TOO_LONG: "Name is too long.",
+    VALIDATION_EMAIL_INVALID: "Invalid email format.",
+    VALIDATION_URL_INVALID: "Invalid URL format.",
+    VALIDATION_ADDRESS_TOO_LONG: "Address is too long.",
+    VALIDATION_DATE_FORMAT: "Invalid date format. Use YYYY-MM-DD.",
+    VALIDATION_TIMESTAMP_INVALID: "Invalid timestamp.",
+    VALIDATION_HASH_REQUIRED: "Hash is required.",
+    VALIDATION_FREQUENCY_INVALID: "Frequency must be a positive number.",
+    VALIDATION_ID_REQUIRED: "ID is required.",
+    VALIDATION_AMOUNT_INVALID: "Invalid amount format.",
+    VALIDATION_CURRENCY_INVALID: "Currency code must be 3 characters.",
+    VALIDATION_DESCRIPTION_TOO_LONG: "Description is too long.",
+    VALIDATION_DATETIME_INVALID: "Invalid datetime format.",
+    VALIDATION_ENTITY_REQUIRED: "Entity is required.",
   },
   pinPad: {
     keypadNumberLabel: 'Number {num}',
@@ -484,27 +493,21 @@ export const en = {
     biometricLabel: 'Use biometric authentication',
     submitLabel: 'Submit PIN',
     forgotPinLink: 'Forgot PIN?',
-    errorInvalid: 'Invalid PIN. Please try again.',
     setupTitleEntry: 'Set up your PIN',
     setupTitleConfirm: 'Confirm your PIN',
     setupSubtitleEntry: 'Create a secure {pinLength}-digit PIN for quick access.',
     setupSubtitleConfirm: 'Enter the same PIN again to confirm.',
+    setupModifyPinBtn: 'Setup different PIN',
     errorMismatch: 'PINs do not match. Please try again.',
     cancelButton: 'Cancel',
     updateTitleCurrent: 'Enter your current PIN',
     updateSuccess: 'PIN updated successfully!',
     errorUpdateIncorrectCurrent: 'Current PIN is incorrect.',
     changeTitle: 'Change PIN',
-  },
-  setPin: {
-    title: 'Set Your Security PIN',
-    subtitle: 'Create a secure PIN for your wallet. This will be required for transactions and important actions.',
-    pinLabel: 'Enter 6-digit PIN',
-    confirmPinLabel: 'Confirm 6-digit PIN',
-    setPinButton: 'Set PIN',
-    pinMismatch: 'PINs do not match.',
-    pinInvalidFormat: 'PIN must be 6 digits.',
-    pinSetSuccess: 'PIN set successfully!',
-    pinSetError: 'Failed to set PIN. Please try again.',
+    digitsEntered: "{count} of {total} digits entered",
+    enterDigits: "Enter your {count}-digit code",
+    lockedUntil: 'Too many incorrect PIN attempts. Try again in {time}.',
+    lockedWelcomeMessage: "Hey there",
+    loggedOutWelcomeMessage: "Welcome back",
   },
 };

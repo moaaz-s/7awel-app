@@ -2,7 +2,7 @@
 
 import { useLanguage } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
-import { PageContainer } from "@/components/ui/page-container"
+import { PageContainer } from "@/components/layouts/page-container"
 import { en } from "@/locales/en"
 import { ar } from "@/locales/ar"
 

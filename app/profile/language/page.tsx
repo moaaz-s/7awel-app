@@ -3,10 +3,10 @@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { useLanguage, type Language } from "@/context/LanguageContext"
-import { ProfileLayout } from "@/components/layouts/ProfileLayout"
+import { PageContainer } from "@/components/layouts/page-container"
 
 export default function LanguagePage() {
-  const { language, setLanguage, t, isRTL } = useLanguage()
+  const { language, setLanguage, t } = useLanguage()
 
   // Define supported languages
   const languages = [
@@ -15,7 +15,7 @@ export default function LanguagePage() {
   ]
 
   return (
-    <ProfileLayout title={t("profile.language")} backHref="/profile">
+    <PageContainer title={t("profile.language")} backHref="/profile">
       <div className="space-y-6">
         <div className="bg-white rounded-lg border overflow-hidden">
           <RadioGroup
@@ -53,6 +53,6 @@ export default function LanguagePage() {
           </RadioGroup>
         </div>
       </div>
-    </ProfileLayout>
+    </PageContainer>
   )
 }

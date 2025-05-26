@@ -23,81 +23,6 @@ interface CashOutState {
 }
 
 /**
- * Custom hook for managing send money flow
- */
-export function useSendMoneyFlow() {
-  const router = useRouter()
-  const { sendMoney, status, error } = useTransaction()
-  const [step, setStep] = useState<TransactionStep>("recipient")
-  const [state, setState] = useState<SendMoneyState>({
-    recipient: null,
-    amount: "",
-    note: "",
-  })
-
-  const setRecipient = useCallback((recipient: Contact) => {
-    setState((prev) => ({ ...prev, recipient }))
-    setStep("amount")
-  }, [])
-
-  const setAmount = useCallback((amount: string) => {
-    setState((prev) => ({ ...prev, amount }))
-    setStep("confirmation")
-  }, [])
-
-  const setNote = useCallback((note: string) => {
-    setState((prev) => ({ ...prev, note }))
-  }, [])
-
-  const handleConfirm = useCallback(async () => {
-    info("[useSendMoneyFlow.handleConfirm] Called.");
-    if (!state.recipient) return
-
-    info("[useSendMoneyFlow.handleConfirm] Calling sendMoney...");
-    const result = await sendMoney(state.recipient, Number.parseFloat(state.amount), state.note)
-    info("[useSendMoneyFlow.handleConfirm] sendMoney result:", result);
-
-    if (result.success) {
-      info("[useSendMoneyFlow.handleConfirm] Send money success. Storing details and navigating...");
-      // Store transaction details for success page
-      transactionService.storeTransactionDetails("sendMoneyDetails", {
-        amount: state.amount,
-        recipient: state.recipient.name,
-        date: transactionService.formatDate(new Date()),
-        reference: result.transaction?.reference || transactionService.generateReference(),
-        note: state.note,
-      })
-
-      router.push("/send/success")
-    } else {
-      warn("[useSendMoneyFlow.handleConfirm] Send money failed. Error should be handled in useTransaction.");
-      // Error state should be updated by useTransaction hook
-    }
-  }, [state, sendMoney, router])
-
-  const goBack = useCallback(() => {
-    if (step === "amount") {
-      setStep("recipient")
-    } else if (step === "confirmation") {
-      setStep("amount")
-    }
-  }, [step])
-
-  return {
-    step,
-    state,
-    status,
-    error,
-    isLoading: status === TransactionStatus.LOADING,
-    setRecipient,
-    setAmount,
-    setNote,
-    handleConfirm,
-    goBack,
-  }
-}
-
-/**
  * Custom hook for managing cash out flow
  */
 export function useCashOutFlow() {
@@ -125,14 +50,14 @@ export function useCashOutFlow() {
     const result = await cashOut(Number.parseFloat(state.amount), state.method.id)
 
     if (result.success) {
-      // Store transaction details for success page
-      transactionService.storeTransactionDetails("cashOutDetails", {
-        amount: state.amount,
-        method: state.method.name,
-        fee: transactionService.calculateFee(Number.parseFloat(state.amount), state.method.feePercentage),
-        date: transactionService.formatDate(new Date()),
-        reference: result.reference || transactionService.generateReference("WD"),
-      })
+      // // Store transaction details for success page
+      // transactionService.storeTransactionDetails("cashOutDetails", {
+      //   amount: state.amount,
+      //   method: state.method.name,
+      //   fee: transactionService.calculateFee(Number.parseFloat(state.amount), state.method.feePercentage),
+      //   date: transactionService.formatDate(new Date()),
+      //   reference: result.reference || transactionService.generateReference("WD"),
+      // })
 
       router.push("/cash-out/success")
     }
@@ -193,13 +118,13 @@ export function useRequestMoneyFlow() {
 
       setRequestGenerated(true)
 
-      // Store request details for future reference if needed
-      transactionService.storeTransactionDetails("requestDetails", {
-        amount: value,
-        recipient: "Selected Contact", // In a real app, this would be the selected contact
-        date: transactionService.formatDate(new Date()),
-        reference: requestData.qrData.reference || transactionService.generateReference("REQ"),
-      })
+      // // Store request details for future reference if needed
+      // transactionService.storeTransactionDetails("requestDetails", {
+      //   amount: value,
+      //   recipient: "Selected Contact", // In a real app, this would be the selected contact
+      //   date: transactionService.formatDate(new Date()),
+      //   reference: requestData.qrData.reference || transactionService.generateReference("REQ"),
+      // })
     },
     [requestMoney],
   )

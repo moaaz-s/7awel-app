@@ -10,13 +10,13 @@
 
 // Session timeouts
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-export const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const SESSION_IDLE_TIMEOUT_MS = 1 * 60 * 1000; // 5 minutes
 
 // Auth related constants
 export const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 6;
 export const MAX_PIN_ATTEMPTS = 3;
-export const PIN_LOCKOUT_TIME_MS = 30 * 60 * 1000; // 30 minutes
+export const PIN_LOCKOUT_TIME_MS = 1 * 60 * 1000; // 1 minutes
 
 /** Maximum number of OTP verification attempts before lockout */
 export const MAX_OTP_ATTEMPTS = 3;

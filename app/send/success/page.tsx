@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSendTransaction } from "@/context/transactions/SendTransactionContext"
 import { SuccessLayout } from "@/components/layouts/SuccessLayout"
-import { ContentCard } from "@/components/ui/content-card"
-import { ContentCardRowItem } from "@/components/ui/content-card-row-item"
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
 import { DotLottieReact } from '@lottiefiles/dotlottie-react'
-import { transactionService } from "@/services/transaction-service"
 import { useLanguage } from "@/context/LanguageContext"
+import { spacing } from "@/components/ui-config"
 
 interface SendMoneyDetails {
   amount: string
@@ -17,27 +17,19 @@ interface SendMoneyDetails {
 }
 
 export default function TransactionSuccessPage() {
-  const [details, setDetails] = useState<SendMoneyDetails | null>(null)
+  const { details } = useSendTransaction()
   const { t } = useLanguage()
-
-  useEffect(() => {
-    // Retrieve transaction details from session storage
-    const storedDetails = transactionService.retrieveTransactionDetails<SendMoneyDetails>("sendMoneyDetails")
-    if (storedDetails) {
-      setDetails(storedDetails)
-    }
-  }, [])
 
   // Create share text based on transaction details
   const shareText = details
-    ? t("sendSuccess.shareText", { amount: details.amount, recipient: details.recipient })
-    : t("sendSuccess.shareTextDefault")
+    ? t("transaction.sentShareText", { amount: details.amount, recipient: details.recipient })
+    : ""
 
   return (
     <SuccessLayout
       title={t("sendSuccess.title")}
-      description={t("sendSuccess.description")}
-      primaryActionText={t("common.backToHome")}
+      // description={t("sendSuccess.description")}
+      primaryActionText={t("common.backHome")}
       primaryActionHref="/home"
       shareTitle={t("transaction.transactionDetails")}
       shareText={shareText}
@@ -46,27 +38,27 @@ export default function TransactionSuccessPage() {
         <DotLottieReact
           src="/animations/tx success.lottie"
           autoplay={true}
-          loop={false}
+          loop={true}
           className="h-48 w-48 mx-auto"
         />
       }
     >
       <ContentCard elevated={true}>
-        <div className="p-4 space-y-4">
+        <div className={spacing.stack_sm}>
           <ContentCardRowItem label={t("sendSuccess.amount")}>
-            ${details?.amount || "50.00"}
+            ${details?.amount}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("sendSuccess.to")}>
-            {details?.recipient || "Sarah Johnson"}
+            {details?.recipient}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("sendSuccess.date")}>
-            {details?.date || "April 11, 2025"}
+            {details?.date}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("sendSuccess.transactionId")}>
-            <span className="text-xs">{details?.reference || "TXN123456789"}</span>
+            <span className="text-ellipsis">{details?.reference}</span>
           </ContentCardRowItem>
           
           {details?.note && (

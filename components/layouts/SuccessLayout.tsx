@@ -36,8 +36,8 @@ export function SuccessLayout({
     <div className="flex-1 flex min-h-screen flex-col items-center justify-between text-center w-full p-4">
       {icon && <div className="mx-auto">{icon}</div>}
 
-      <div className="w-full">
-        <div className="space-y-2">
+      <div className="flex flex-col space-y-4 w-full">
+        <div className="">
           <h1 className="text-2xl font-bold">{title}</h1>
           {description && <p className="text-muted-foreground">{description}</p>}
         </div>

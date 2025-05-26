@@ -9,6 +9,10 @@ export type User = {
   email?: string
   phone: string
   avatar?: string
+  address?: string
+  dob?: string
+  country?: string
+  gender?: string
   createdAt?: string // ISO date
   lastLogin?: string // ISO date
   kycLevel?: string
@@ -136,31 +140,19 @@ export type AssetBalance = {
 export type WalletBalance = AssetBalance
 
 // ----- Auth & OTP related (legacy) -----
-export interface LoginInitiationResponse {
+export interface OtpInitiationResponse {
   requiresOtp: boolean
   /** Optional OTP expiry timestamp (unix ms) returned by server */
   expires?: number
 }
 
 export interface OtpVerificationResponse {
-  success: boolean
-  phone: string
-  email: string
-  pinSet: boolean
-  phoneVerified: boolean
-  emailVerified: boolean
-  registrationComplete: boolean
+  valid: boolean
 }
 
-export interface EmailVerificationResponse {
-  success: boolean
-  emailVerified: boolean
-}
-
-export interface SendEmailVerificationResponse {
-  token: string     // one-time verification token
-  code: string      // 6-digit fallback shown in email
-  expires: number   // unix ms expiry timestamp
+export interface TokenAcquisitionResponse {
+  accessToken: string;
+  refreshToken: string;
 }
 
 // ----- Transaction & Pagination -----

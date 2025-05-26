@@ -2,9 +2,8 @@
 
 import { AmountInput } from "@/components/amount-input"
 import { useData } from "@/context/DataContext"
-import { PageContainer } from "@/components/ui/page-container"
+import { PageContainer } from "@/components/layouts/page-container"
 import { CardContainer } from "@/components/ui/card-container"
-// import { ButtonPrimary } from "@/components/ui/button-primary"
 import { spacing, typography } from "@/components/ui-config"
 import { useCashOutFlow } from "@/hooks/use-transaction-flow"
 import { CASH_OUT_METHODS } from "@/services/transaction-service"

@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { PinEntry } from '../pin-entry';
+import { PinPad } from '../pin-pad';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
+import { spacing } from '../ui-config';
 
 interface PinSetupProps {
   onSubmit: (pin: string) => void;
@@ -39,7 +40,7 @@ const PinSetup: React.FC<PinSetupProps> = ({
       onSubmit(pin); // Pins match, submit!
     } else {
       setLocalError(t('pinPad.errorMismatch'));
-      // Reset second pin input? PinEntry might need a reset prop or clear method
+      // Reset second pin input? PinPad might need a reset prop or clear method
       // For now, just show error. User needs to re-enter second pin.
       setSecondPin(''); // Clear the state for second pin
     }
@@ -56,14 +57,15 @@ const PinSetup: React.FC<PinSetupProps> = ({
   const currentTitle = title ?? (stage === 'entry' ? t('pinPad.setupTitleEntry') : t('pinPad.setupTitleConfirm'));
 
   return (
-    <div className="flex flex-col items-center w-full max-w-xs mx-auto pt-10">
+    <div className="flex-1 flex flex-col items-center justify-between w-full max-w-xs mx-auto">
       <h1 className="text-2xl font-bold mb-2 text-center">{currentTitle}</h1>
-      <p className="text-muted-foreground mb-8 text-center">{getSubtitle()}</p>
+      {/* <p className="text-muted-foreground mb-8 text-center">{getSubtitle()}</p> */}
 
       {stage === 'entry' && (
-        <PinEntry 
+        <PinPad 
+          alwaysValid={true}
           key="pin-entry-1" // Key helps reset internal state
-          onComplete={handleFirstPinSubmit} // Use onComplete
+          onValidPin={handleFirstPinSubmit} // Use onValidPin
           isLoading={isLoading} 
           error={currentError} // Display error if any
           showBiometric={false} // Don't show biometric during setup
@@ -72,15 +74,33 @@ const PinSetup: React.FC<PinSetupProps> = ({
       )}
 
       {stage === 'confirmation' && (
-        <PinEntry 
-          key="pin-entry-2" // Different key for confirmation stage
-          onComplete={handleSecondPinSubmit} // Use onComplete
-          isLoading={isLoading} 
-          error={currentError} // Display error if any
-          showBiometric={false}
-          showForgotPin={false}
-          // Consider adding a prop to PinEntry clear its value if needed on error
-        />
+        <div className={`flex flex-col items-center ${spacing.stack_sm}`}>
+          <PinPad 
+            alwaysValid={true}
+            key="pin-entry-2" // Different key for confirmation stage
+            onValidPin={handleSecondPinSubmit} // Use onValidPin
+            isLoading={isLoading} 
+            error={currentError} // Display error if any
+            showBiometric={false}
+            showForgotPin={false}
+            // Consider adding a prop to PinPad clear its value if needed on error
+          />
+
+          {/* Back Button for confirmation stage */}
+          <Button 
+            variant="link"
+            onClick={() => {
+              setStage('entry');
+              setFirstPin('');
+              setLocalError(null);
+            }} 
+            disabled={isLoading}
+            fullWidth
+            withoutShadow
+          >
+            {t('pinPad.setupModifyPinBtn')}
+          </Button>
+        </div>
       )}
 
       {/* Cancel Button */}

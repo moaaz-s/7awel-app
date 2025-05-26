@@ -1,27 +1,362 @@
 // platform/capacitor.ts
-// Capacitor‑specific implementations. Import all plugins here so that the rest
-// of the code base remains platform‑agnostic.
-
+import { loadPlatform } from '@/platform';
 import { Capacitor } from '@capacitor/core';
-import { Device } from "@capacitor/device"
-import { Preferences } from "@capacitor/preferences"
+import { Preferences } from '@capacitor/preferences';
+import { info, warn, error as logError } from "@/utils/logger";
+import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
+import { BaseLocalDatabaseManager, ContactHelpers, ProfileHelpers, TransactionHelpers, SyncHelpers } from './local-db/local-db-common'
 
-// Note: We import other plugins lazily (dynamic import) to keep bundle size small and
-// to avoid TypeScript errors when the plugins are not installed for web builds.
+// Platform type export
+export const platformType = "capacitor" as const
 
-/** Returns detailed device info (platform, model, OS version, etc.). */
+// Platform utilities
 export async function getDeviceInfo() {
-  return await Device.getInfo()
+  const { Device } = await import('@capacitor/device');
+  return Device.getInfo();
 }
 
-/** Secure‑ish key/value store – uses Preferences on Android/iOS. */
-export async function secureStoreSet(key: string, value: string) {
-  await Preferences.set({ key, value })
+// Secure storage using Preferences
+export async function getSecureStorageItem(key: string): Promise<string | null> {
+  const { value } = await Preferences.get({ key });
+  return value;
 }
 
-export async function secureStoreGet(key: string) {
-  const { value } = await Preferences.get({ key })
-  return value ?? null
+export async function setSecureStorageItem(key: string, value: string): Promise<void> {
+  await Preferences.set({ key, value });
+}
+
+export async function removeSecureStorageItem(key: string): Promise<void> {
+  await Preferences.remove({ key });
+}
+
+// Backward compatibility aliases
+export const secureStoreGet = getSecureStorageItem;
+export const secureStoreSet = setSecureStorageItem;
+export const secureStoreRemove = removeSecureStorageItem;
+
+// SQLite Local Database for Capacitor
+class SQLiteManager extends BaseLocalDatabaseManager {
+  private db: any = null;
+  
+  async init(): Promise<void> {
+    if (this.isInitialized) return;
+    
+    try {
+      // @ts-ignore - Optional dependency for mobile platforms
+      const { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } = await import('@capacitor-community/sqlite');
+      const sqlite = new SQLiteConnection(CapacitorSQLite);
+      
+      // Create and open database
+      this.db = await sqlite.createConnection('7awel-local-db', false, 'no-encryption', 1, false);
+      await this.db.open();
+      
+      // Create tables
+      await this.createTables();
+      
+      info('[SQLiteManager] Database initialized successfully');
+      this.isInitialized = true;
+    } catch (error) {
+      logError('[SQLiteManager] Failed to initialize database:', error);
+      throw error;
+    }
+  }
+  
+  private async createTables(): Promise<void> {
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS userProfile (
+        id TEXT PRIMARY KEY,
+        firstName TEXT NOT NULL,
+        lastName TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        avatar TEXT,
+        country TEXT,
+        lastUpdated INTEGER NOT NULL
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        phoneHash TEXT NOT NULL,
+        email TEXT,
+        avatar TEXT,
+        lastInteraction INTEGER,
+        isFavorite INTEGER DEFAULT 0,
+        syncedAt INTEGER NOT NULL,
+        hasAccount INTEGER DEFAULT 0
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS recentTransactions (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        recipientId TEXT,
+        senderId TEXT,
+        note TEXT
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS syncMetadata (
+        entity TEXT PRIMARY KEY,
+        lastSyncTime INTEGER NOT NULL,
+        syncVersion INTEGER NOT NULL
+      )`
+    ];
+    
+    for (const sql of tables) {
+      await this.db.execute(sql);
+    }
+    
+    // Create indexes
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_contacts_phoneHash ON contacts(phoneHash)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_contacts_isFavorite ON contacts(isFavorite)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON recentTransactions(timestamp)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_recipientId ON recentTransactions(recipientId)');
+  }
+  
+  async get<T extends StoreName>(
+    storeName: T,
+    key: string
+  ): Promise<LocalDatabase[T] | undefined> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    try {
+      const query = `SELECT * FROM ${storeName} WHERE ${this.getPrimaryKey(storeName)} = ?`;
+      const result = await this.db.query(query, [key]);
+      
+      if (result.values && result.values.length > 0) {
+        const row = result.values[0];
+        return this.deserializeRow(storeName, row);
+      }
+      
+      return undefined;
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to get from ${storeName}:`, error);
+      throw error;
+    }
+  }
+  
+  async getAll<T extends StoreName>(storeName: T): Promise<LocalDatabase[T][]> {
+    await this.ensureInitialized();
+    
+    try {
+      const result = await this.db.query(`SELECT * FROM ${storeName}`);
+      if (result.values) {
+        return result.values.map((row: any) => this.deserializeRow(storeName, row));
+      }
+      return [];
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to getAll from ${storeName}:`, error);
+      return [];
+    }
+  }
+  
+  async set<T extends StoreName>(storeName: T, value: LocalDatabase[T]): Promise<void> {
+    await this.ensureInitialized();
+    
+    try {
+      const columns = this.getColumns(storeName);
+      const placeholders = columns.map(() => '?').join(', ');
+      const updatePlaceholders = columns.map(col => `${col} = ?`).join(', ');
+      const primaryKey = this.getPrimaryKey(storeName);
+      
+      const values = this.serializeRow(storeName, value);
+      
+      // Try update first, then insert if needed
+      const sql = `
+        INSERT INTO ${storeName} (${columns.join(', ')}) VALUES (${placeholders})
+        ON CONFLICT(${primaryKey}) DO UPDATE SET ${updatePlaceholders}
+      `;
+      
+      await this.db.run(sql, [...values, ...values]);
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to set in ${storeName}:`, error);
+      throw error;
+    }
+  }
+  
+  async delete<T extends StoreName>(storeName: T, key: string): Promise<void> {
+    await this.ensureInitialized();
+    
+    try {
+      const primaryKey = this.getPrimaryKey(storeName);
+      await this.db.run(
+        `DELETE FROM ${storeName} WHERE ${primaryKey} = ?`,
+        [key]
+      );
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to delete from ${storeName}:`, error);
+      throw error;
+    }
+  }
+  
+  async clear<T extends StoreName>(storeName: T): Promise<void> {
+    await this.ensureInitialized();
+    
+    try {
+      await this.db.run(`DELETE FROM ${storeName}`);
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to clear ${storeName}:`, error);
+      throw error;
+    }
+  }
+  
+  async query<T extends StoreName>(storeName: T, index: string, value: any): Promise<LocalDatabase[T][]> {
+    await this.ensureInitialized();
+    
+    try {
+      const result = await this.db.query(
+        `SELECT * FROM ${storeName} WHERE ${index} = ?`,
+        [value]
+      );
+      
+      if (result.values) {
+        return result.values.map((row: any) => this.deserializeRow(storeName, row));
+      }
+      return [];
+    } catch (error) {
+      logError(`[SQLiteManager] Failed to query ${storeName}.${index}:`, error);
+      return [];
+    }
+  }
+  
+  async transaction<T>(
+    storeNames: StoreName[],
+    mode: 'readonly' | 'readwrite',
+    callback: (tx: TransactionContext) => Promise<T>
+  ): Promise<T> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    
+    // SQLite doesn't have the same transaction model as IndexedDB
+    // We'll implement a simple transaction wrapper
+    const context: TransactionContext = {
+      get: async <K extends StoreName>(storeName: K, key: string) => {
+        return this.get(storeName, key);
+      },
+      getAll: async <K extends StoreName>(storeName: K) => {
+        return this.getAll(storeName);
+      },
+      set: async <K extends StoreName>(storeName: K, value: LocalDatabase[K]) => {
+        await this.set(storeName, value);
+      },
+      delete: async <K extends StoreName>(storeName: K, key: string) => {
+        await this.delete(storeName, key);
+      }
+    };
+    
+    // Execute callback with our transaction context
+    try {
+      await this.db.beginTransaction();
+      const result = await callback(context);
+      await this.db.commitTransaction();
+      return result;
+    } catch (error) {
+      await this.db.rollbackTransaction();
+      throw error;
+    }
+  }
+  
+  private getPrimaryKey(storeName: StoreName): string {
+    switch (storeName) {
+      case 'userProfile':
+      case 'contacts':
+      case 'recentTransactions':
+        return 'id';
+      case 'syncMetadata':
+        return 'entity';
+      default:
+        return 'id';
+    }
+  }
+  
+  private getColumns(storeName: StoreName): string[] {
+    switch (storeName) {
+      case 'userProfile':
+        return ['id', 'firstName', 'lastName', 'email', 'phone', 'avatar', 'country', 'lastUpdated'];
+      case 'contacts':
+        return ['id', 'name', 'phone', 'phoneHash', 'email', 'avatar', 'lastInteraction', 'isFavorite', 'syncedAt', 'hasAccount'];
+      case 'recentTransactions':
+        return ['id', 'type', 'amount', 'currency', 'status', 'timestamp', 'recipientId', 'senderId', 'note'];
+      case 'syncMetadata':
+        return ['entity', 'lastSyncTime', 'syncVersion'];
+      default:
+        return [];
+    }
+  }
+  
+  private serializeRow(storeName: StoreName, value: any): any[] {
+    const columns = this.getColumns(storeName);
+    return columns.map(col => {
+      if (col === 'isFavorite' || col === 'hasAccount') {
+        return value[col] ? 1 : 0;
+      }
+      return value[col] ?? null;
+    });
+  }
+  
+  private deserializeRow(storeName: StoreName, row: any): any {
+    const parsed = { ...row };
+    
+    // Convert SQLite boolean values
+    if ('isFavorite' in parsed) {
+      parsed.isFavorite = parsed.isFavorite === 1;
+    }
+    if ('hasAccount' in parsed) {
+      parsed.hasAccount = parsed.hasAccount === 1;
+    }
+    
+    return parsed;
+  }
+}
+
+// Singleton instance
+let dbManager: SQLiteManager | null = null;
+
+export async function getLocalDB(): Promise<SQLiteManager> {
+  if (!dbManager) {
+    dbManager = new SQLiteManager();
+    await dbManager.init();
+  }
+  return dbManager;
+}
+
+// Re-export helper functions from common
+export { ContactHelpers, ProfileHelpers, TransactionHelpers, SyncHelpers } from './local-db/local-db-common';
+
+// Export types
+export type { LocalDatabase, StoreName } from './local-db/local-db-types';
+
+// Legacy helper functions for backward compatibility
+export async function getRecentContacts(limit: number = 10): Promise<LocalDatabase['contacts'][]> {
+  const db = await getLocalDB();
+  const allContacts = await db.getAll('contacts');
+  
+  return allContacts
+    .filter(c => c.lastInteraction)
+    .sort((a, b) => (b.lastInteraction || 0) - (a.lastInteraction || 0))
+    .slice(0, limit);
+}
+
+export async function getFavoriteContacts(): Promise<LocalDatabase['contacts'][]> {
+  const db = await getLocalDB();
+  return db.query('contacts', 'isFavorite', 1);
+}
+
+export async function updateContactInteraction(contactId: string): Promise<void> {
+  const db = await getLocalDB();
+  const contact = await db.get('contacts', contactId);
+  
+  if (contact) {
+    contact.lastInteraction = Date.now();
+    await db.set('contacts', contact);
+  }
 }
 
 /** Utility to know if we run inside a native container. */

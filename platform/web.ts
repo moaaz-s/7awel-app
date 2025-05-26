@@ -1,9 +1,258 @@
 // platform/web.ts
-// Web implementation stubs for platform‑specific functionality. These will be replaced by
-// real Capacitor implementations on mobile builds.
-
 import { loadPlatform } from '@/platform';
 import { info, warn, error as logError } from "@/utils/logger";
+import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
+import { BaseLocalDatabaseManager } from './local-db/local-db-common'
+
+// Platform type export
+export const platformType = "web" as const
+
+// PIN storage (web treats this as secure)
+export async function getSecureStorageItem(key: string): Promise<string | null> {
+  const value = localStorage.getItem(key)
+  return value || null
+}
+
+export async function setSecureStorageItem(key: string, value: string): Promise<void> {
+  localStorage.setItem(key, value)
+}
+
+export async function removeSecureStorageItem(key: string): Promise<void> {
+  localStorage.removeItem(key)
+}
+
+// Local database implementation for web using IndexedDB
+const DB_NAME = '7awel-local-db';
+const DB_VERSION = 1;
+
+class IndexedDBManager extends BaseLocalDatabaseManager {
+  private db: IDBDatabase | null = null;
+  
+  async init(): Promise<void> {
+    if (this.isInitialized) return;
+    
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      
+      request.onerror = () => reject(request.error);
+      
+      request.onsuccess = () => {
+        this.db = request.result;
+        this.isInitialized = true;
+        resolve();
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        
+        // Create object stores
+        if (!db.objectStoreNames.contains('userProfile')) {
+          db.createObjectStore('userProfile', { keyPath: 'id' });
+        }
+        
+        if (!db.objectStoreNames.contains('contacts')) {
+          const contactStore = db.createObjectStore('contacts', { keyPath: 'id' });
+          contactStore.createIndex('phoneHash', 'phoneHash', { unique: false });
+          contactStore.createIndex('isFavorite', 'isFavorite', { unique: false });
+        }
+        
+        if (!db.objectStoreNames.contains('recentTransactions')) {
+          const txStore = db.createObjectStore('recentTransactions', { keyPath: 'id' });
+          txStore.createIndex('timestamp', 'timestamp', { unique: false });
+          txStore.createIndex('recipientId', 'recipientId', { unique: false });
+        }
+        
+        if (!db.objectStoreNames.contains('syncMetadata')) {
+          db.createObjectStore('syncMetadata', { keyPath: 'id' });
+        }
+        
+        if (!db.objectStoreNames.contains('syncQueue')) {
+          const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id' });
+          syncStore.createIndex('storeName', 'storeName', { unique: false });
+          syncStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+        
+        if (!db.objectStoreNames.contains('failedSyncs')) {
+          const failedStore = db.createObjectStore('failedSyncs', { keyPath: 'id' });
+          failedStore.createIndex('storeName', 'storeName', { unique: false });
+          failedStore.createIndex('movedToFailedAt', 'movedToFailedAt', { unique: false });
+        }
+      };
+    });
+  }
+  
+  async get<T extends StoreName>(storeName: T, key: string): Promise<LocalDatabase[T] | undefined> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const request = store.get(key);
+      
+      request.onsuccess = () => resolve(request.result || undefined);
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async getAll<T extends StoreName>(storeName: T): Promise<LocalDatabase[T][]> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async set<T extends StoreName>(storeName: T, value: LocalDatabase[T]): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.put(value);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async delete<T extends StoreName>(storeName: T, key: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.delete(key);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async clear<T extends StoreName>(storeName: T): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.clear();
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async query<T extends StoreName>(storeName: T, index: string, value: any): Promise<LocalDatabase[T][]> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const indexObj = store.index(index);
+      const request = indexObj.getAll(value);
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  }
+  
+  async transaction<R>(
+    storeNames: StoreName[], 
+    mode: 'readonly' | 'readwrite',
+    callback: (tx: TransactionContext) => Promise<R>
+  ): Promise<R> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(storeNames, mode);
+      
+      // Create a transaction context
+      const context: TransactionContext = {
+        get: async <T extends StoreName>(storeName: T, key: string): Promise<LocalDatabase[T] | undefined> => {
+          return new Promise((resolveGet, rejectGet) => {
+            const store = transaction.objectStore(storeName);
+            const request = store.get(key);
+            
+            request.onsuccess = () => resolveGet(request.result || undefined);
+            request.onerror = () => rejectGet(request.error);
+          });
+        },
+        
+        getAll: async <T extends StoreName>(storeName: T): Promise<LocalDatabase[T][]> => {
+          return new Promise((resolveGetAll, rejectGetAll) => {
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+            
+            request.onsuccess = () => resolveGetAll(request.result || []);
+            request.onerror = () => rejectGetAll(request.error);
+          });
+        },
+        
+        set: async <T extends StoreName>(storeName: T, value: LocalDatabase[T]): Promise<void> => {
+          return new Promise((resolveSet, rejectSet) => {
+            const store = transaction.objectStore(storeName);
+            const request = store.put(value);
+            
+            request.onsuccess = () => resolveSet();
+            request.onerror = () => rejectSet(request.error);
+          });
+        },
+        
+        delete: async <T extends StoreName>(storeName: T, key: string): Promise<void> => {
+          return new Promise((resolveDelete, rejectDelete) => {
+            const store = transaction.objectStore(storeName);
+            const request = store.delete(key);
+            
+            request.onsuccess = () => resolveDelete();
+            request.onerror = () => rejectDelete(request.error);
+          });
+        }
+      };
+      
+      // Execute the callback with the transaction context
+      callback(context)
+        .then(result => {
+          transaction.oncomplete = () => resolve(result);
+        })
+        .catch(error => {
+          transaction.abort();
+          reject(error);
+        });
+      
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+}
+
+// Singleton instance
+let dbManager: IndexedDBManager | null = null;
+
+export async function getLocalDB(): Promise<IndexedDBManager> {
+  if (!dbManager) {
+    dbManager = new IndexedDBManager();
+    await dbManager.init();
+  }
+  return dbManager;
+}
+
+// Re-export helper functions from common
+export { ContactHelpers, ProfileHelpers, TransactionHelpers, SyncHelpers } from './local-db/local-db-common';
+
+// Export types
+export type { LocalDatabase, StoreName } from './local-db/local-db-types';
+
+// Other web-specific exports (unchanged)
 
 export async function getDeviceInfo() {
   return {
@@ -25,8 +274,6 @@ export async function secureStoreGet(key: string) {
 export async function secureStoreRemove(key: string) {
   localStorage.removeItem(key)
 }
-
-// -------------------- additional feature fallbacks --------------------
 
 export async function isBiometricAvailable() {
   return false
@@ -203,5 +450,31 @@ export async function openEmailClient(email: string): Promise<boolean> {
   } catch (err) {
     logError('[platform/web] Error opening email client:', err);
     return false;
+  }
+}
+
+export async function getRecentContacts(limit: number = 10): Promise<LocalDatabase['contacts'][]> {
+  const db = await getLocalDB();
+  const allContacts = await db.getAll('contacts');
+  
+  // Sort by lastInteraction descending and take limit
+  return allContacts
+    .filter(c => c.lastInteraction)
+    .sort((a, b) => (b.lastInteraction || 0) - (a.lastInteraction || 0))
+    .slice(0, limit);
+}
+
+export async function getFavoriteContacts(): Promise<LocalDatabase['contacts'][]> {
+  const db = await getLocalDB();
+  return db.query('contacts', 'isFavorite', true);
+}
+
+export async function updateContactInteraction(contactId: string): Promise<void> {
+  const db = await getLocalDB();
+  const contact = await db.get('contacts', contactId);
+  
+  if (contact) {
+    contact.lastInteraction = Date.now();
+    await db.set('contacts', contact);
   }
 }

@@ -60,11 +60,12 @@ export function EmailInput({ onSubmit, isLoading = false, errorMessage }: EmailI
       )}
 
       <Button 
-        type="submit" 
-        variant="gradient" 
+        type="submit"
+        variant="gradient"
+        disabled={isLoading}
+        isLoading={isLoading}
         size="lg"
-        fullWidth
-        disabled={isLoading}>
+        fullWidth>
         {t('common.continue')}
       </Button>
     </Form>

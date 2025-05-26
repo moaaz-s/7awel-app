@@ -9,29 +9,24 @@ import {
   AUTH_STEP_PHONE_OTP_PENDING, 
   AUTH_STEP_EMAIL_ENTRY_PENDING, 
   AUTH_STEP_EMAIL_OTP_PENDING, 
+  AUTH_STEP_USER_PROFILE_PENDING,
   AUTH_STEP_PIN_SETUP_PENDING, 
   AUTH_STEP_AUTHENTICATED, 
   AUTH_STEP_PIN_ENTRY_PENDING, 
-  AUTH_STEP_INITIATE, 
-  AUTH_STEP_LOCKED,
+  AUTH_STEP_INITIATE,
   AUTH_STEP_TOKEN_ACQUISITION
-} from '@/constants/auth-steps';
-import { AuthFlowType } from '@/constants/auth-flows';
+} from '@/context/auth/flow/flowSteps';
+import { AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
 import { OtpChannel } from '@/services/api-service';
 import { 
-  CheckCircle, 
-  Lock, 
   AlertTriangle, 
-  Mail,
   Loader2 
 } from 'lucide-react';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-
-// Use loadPlatform to get the right platform implementation
-import { loadPlatform } from '@/platform';
-
+import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 // Import step components
 import { PhoneInput } from '../phone-input'; 
@@ -39,7 +34,10 @@ import { OtpVerification } from '../otp-verification';
 import { EmailInput } from '../email-input'; 
 import { ActionPopup } from '../shared/ActionPopup';
 import PinSetup from './PinSetup';
-import { PinEntry } from '../pin-entry';
+import ProfileStep from './ProfileStep';
+import { PinPad } from '../pin-pad';
+import { PIN_LOCKOUT_TIME_MS } from '@/constants/auth-constants';
+import { info } from '@/utils/logger';
 
 interface AuthFlowManagerProps {
   flowType: AuthFlowType;
@@ -70,9 +68,11 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
       resendPhoneOtp, 
       resendEmailOtp,
       forgotPin,
-      getAuthToken,
-      activeFlow
+      resetAttempts,
+      activeFlow,
+      isTokenReady
     } = useAuth(); 
+    const { toast } = useToast();
 
     // Initialize the flow based on flowType - using a more robust approach with useRef
     const flowInitialized = useRef<{[key: string]: boolean}>({});
@@ -81,25 +81,15 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
       if (!flowInitialized.current[flowType]) {
         console.log(`[AuthFlowManager] First time initializing flow: ${flowType}`);
         flowInitialized.current[flowType] = true;
-        setTimeout(() => {
-          (async () => {
-            try {
-              const token = await getAuthToken();
-              const initialData = token ? { tokenValid: true } : undefined;
-              initiateFlow(flowType, initialData);
-            } catch (err) {
-              console.error('[AuthFlowManager] Error checking token during init:', err);
-              initiateFlow(flowType);
-            }
-          })();
-        }, 0);
+        const initialData = isTokenReady ? { tokenValid: true } : undefined;
+        initiateFlow(flowType, initialData);
       }
-    }, [flowType, initiateFlow, getAuthToken]);
+    }, [flowType, initiateFlow, isTokenReady]);
 
     // Separate effect for debugging that won't contribute to render cycles
     useEffect(() => {
       if (currentStep) {
-        console.log("[AuthFlowManager] Current Step:", currentStep, "Data:", stepData, "Error:", error);
+        info("[AuthFlowManager] Current Step:", currentStep, "Data:", stepData, "Error:", error);
       }
     }, [currentStep, stepData, error]);
 
@@ -123,6 +113,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
       }
     }, [currentStep, error, onComplete]);
 
+
     // Get the proper title and subtitle based on the flow and current step
     const getFlowTitle = () => {
       // Override based on specific steps
@@ -131,14 +122,14 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
           return t("auth.phoneEntryTitle");
         case AUTH_STEP_PHONE_OTP_PENDING:
           return t("auth.phoneOtpVerificationTitle");
-        case AUTH_STEP_PIN_SETUP_PENDING:
-          return "";
-        case AUTH_STEP_PIN_ENTRY_PENDING:
-          return "";
         case AUTH_STEP_EMAIL_ENTRY_PENDING:
           return t("auth.emailEntryTitle");
         case AUTH_STEP_EMAIL_OTP_PENDING:
           return t("auth.emailOtpVerificationTitle");
+        case AUTH_STEP_USER_PROFILE_PENDING:
+          return t("One last thing");
+        case AUTH_STEP_PIN_SETUP_PENDING:
+        case AUTH_STEP_PIN_ENTRY_PENDING:
         case AUTH_STEP_AUTHENTICATED:
           return "";
         default:
@@ -161,14 +152,14 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
           return t("auth.phoneEntrySubtitle");
         case AUTH_STEP_PHONE_OTP_PENDING:
           return t("auth.phoneOtpVerificationSubtitle");
-        case AUTH_STEP_PIN_SETUP_PENDING:
-          return "";
-        case AUTH_STEP_PIN_ENTRY_PENDING:
-          return "";
         case AUTH_STEP_EMAIL_ENTRY_PENDING:
           return t("auth.emailEntrySubtitle");
         case AUTH_STEP_EMAIL_OTP_PENDING:
           return t("auth.emailOtpVerificationSubtitle");
+        case AUTH_STEP_USER_PROFILE_PENDING:
+          return t("Only few details left");
+        case AUTH_STEP_PIN_SETUP_PENDING:
+        case AUTH_STEP_PIN_ENTRY_PENDING:
         case AUTH_STEP_AUTHENTICATED:
           return "";
         default:
@@ -186,7 +177,13 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     
     // Generate footer content based on flow type
     const getFooterContent = () => {
-      if ([AUTH_STEP_AUTHENTICATED, AUTH_STEP_LOCKED, AUTH_STEP_PIN_ENTRY_PENDING].includes(currentStep || "")) {
+      if ([
+        AUTH_STEP_TOKEN_ACQUISITION,
+        AUTH_STEP_AUTHENTICATED,
+        AUTH_STEP_PIN_ENTRY_PENDING,
+        AUTH_STEP_PIN_SETUP_PENDING,
+        AUTH_STEP_USER_PROFILE_PENDING
+      ].includes(currentStep || "")) {
         return null;
       } else if (flowType === AuthFlowType.SIGNIN) {
         return (
@@ -212,27 +209,11 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     };
 
     // Handle initial loading or unknown state
-    if (currentStep === null && !isLoading) {
+    if (!currentStep || isLoading) {
         return (
-          <div className="flex flex-col items-center justify-center p-6 h-full">
+          <div className="flex flex-col items-center justify-center p-6 h-screen">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">{t('auth.initializing')}</p>
           </div>
-        );
-    }
-    
-    if (isLoading && !currentStep) {
-        return (
-          <AuthLayout
-            title={getFlowTitle()}
-            subtitle={getFlowSubtitle()}
-            footerContent={getFooterContent()}
-          >
-            <div className="flex flex-col items-center justify-center p-6 h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="mt-4 text-muted-foreground">{t('auth.loading')}</p>
-            </div>
-          </AuthLayout>
         );
     }
 
@@ -252,9 +233,53 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
         // First step - go back to home page
         router.push('/');
       } else if (currentStep === AUTH_STEP_PHONE_OTP_PENDING) {
-        initiateFlow(flowType); // Restart flow to go back to phone entry
+        // Show confirmation toast with action via ToastAction wrapper
+        const { dismiss } = toast({
+          variant: "destructive",
+          title: t('auth.confirmBackOtpTitle: Back to Phone Entry'),
+          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong phone ${stepData.phoneNumber}? '),
+          action: (
+            <ToastAction asChild altText={t('common.confirm')}>
+              <Button size="default" variant="destructive-gradient" destructive={true} fullWidth onClick={() => {
+                initiateFlow(flowType, {
+                  countryCode: stepData.countryCode,
+                  phoneNumber: stepData.phoneNumber,
+                  phoneValidated: false,
+                  otpExpires: undefined
+                });
+                dismiss();
+              }}>
+                {t('common.confirm')}
+              </Button>
+            </ToastAction>
+          ),
+        });
+
       } else if (currentStep === AUTH_STEP_EMAIL_OTP_PENDING) {
-        initiateFlow(flowType); // Restart flow to go back to email entry
+        // Restart flow with expired OTP to go back to email entry
+        const { dismiss } = toast({
+          variant: "destructive",
+          title: t('auth.confirmBackOtpTitle: Back to Email Entry'),
+          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong email ${stepData.email}? '),
+          action: (
+            <ToastAction asChild altText={t('common.confirm')}>
+              <Button size="default" variant="destructive-gradient" destructive={true} fullWidth onClick={() => {
+                initiateFlow(flowType, {
+                  countryCode: stepData.countryCode,
+                  phoneNumber: stepData.phoneNumber,
+                  phoneValidated: true,
+                  otpExpires: Date.now() - 1,
+                  email: stepData.email,
+                  emailVerified: false,
+                  emailOtpExpires: Date.now() - 1
+                });
+                dismiss();
+              }}>
+                {t('common.confirm')}
+              </Button>
+            </ToastAction>
+          ),
+        });
       }
     };
 
@@ -265,13 +290,17 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
         case AUTH_STEP_PHONE_ENTRY:
           return (
             <PhoneInput
-              defaultPhoneNumber={stepData.phone}
-              onSubmit={(phone, channel) => advanceFlow({ phone, channel })}
+              defaultCountryCode={stepData.countryCode ?? '+1'}
+              defaultPhoneNumber={stepData.phoneNumber ?? ''}
+              onSubmit={(countryCode, phoneNumber, channel) =>
+                advanceFlow({ countryCode, phoneNumber, channel })
+              }
               error={error || undefined}
               isLoading={isLoading}
             />
           );
         case AUTH_STEP_PHONE_OTP_PENDING:
+          const fullPhoneNumber = `${stepData.countryCode || ''}${stepData.phoneNumber || ''}`;
           return (
             <OtpVerification
               onVerify={(otp) => advanceFlow({ otp })}
@@ -279,7 +308,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               error={error || undefined}
               isLoading={isLoading}
               channelLabel={stepData.channel === OtpChannel.WHATSAPP ? 
-                t('auth.whatsapp') : t('auth.telegram')}
+                `${t('auth.whatsapp')} ${fullPhoneNumber}` : `${t('auth.telegram')} ${fullPhoneNumber}`}
               expiryTs={stepData.otpExpires}
             />
           );
@@ -299,7 +328,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
                 onResend={async () => {
                   if (stepData.email && resendEmailOtp) {
                     try {
-                      await resendEmailOtp(stepData.email);
+                      await resendEmailOtp();
                     } catch (err) {
                       // Error is typically handled and displayed by useAuth/AuthContext
                       console.error("[AuthFlowManager] Failed to resend email OTP:", err);
@@ -311,6 +340,16 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
                 error={error} // Pass down error for display
               />
           );
+        case AUTH_STEP_USER_PROFILE_PENDING:
+          return (
+            <ProfileStep
+              onSubmit={({ firstName, lastName, address }) =>
+                advanceFlow({ firstName, lastName, address })
+              }
+              error={error || undefined}
+              isLoading={isLoading}
+            />
+          );
         case AUTH_STEP_PIN_SETUP_PENDING:
           return (
             <PinSetup
@@ -321,27 +360,24 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
           );
         case AUTH_STEP_PIN_ENTRY_PENDING:
           return (
-            <PinEntry
-              onComplete={(pin) => advanceFlow({ pin })}
+            <PinPad
+              welcome_message={t("pinPad.loggedOutWelcomeMessage")}
+              onValidPin={(pin) => advanceFlow({ pin })}
               onForgotPin={forgotPin}
+              showForgotPin={true}
+              showBiometric={true}
               isLoading={isLoading}
-              // error={error || undefined} // removed because we don't need to surface errors from the auth context, we only need to show errors internal to the PIN entry component
+              error={error}
             />
           );
 
         case AUTH_STEP_TOKEN_ACQUISITION:
           return (
             <div className="flex flex-col flex-1 items-center justify-center p-6">
-              {isLoading ? (
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              ) : (
-                <>
-                  {error && <p className="text-red-500 mb-4">{error}</p>}
-                  <Button onClick={() => advanceFlow({})}>
-                    {t('auth.retry')}
-                  </Button>
-                </>
-              )}
+              {error && <p className="text-red-500 mb-4">{error}</p>}
+              <Button onClick={() => advanceFlow({})}>
+                {t('auth.retry')}
+              </Button>
             </div>
           );
         case AUTH_STEP_AUTHENTICATED:
@@ -350,27 +386,15 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           );
-        case AUTH_STEP_LOCKED:
-          return (
-            <ActionPopup
-              open={true}
-              title={t('auth.locked.title')}
-              description={t('auth.locked.subtitle')}
-              icon={<Lock className="w-16 h-16 text-red-500" />}
-              primaryActionText={t('auth.locked.tryAgain')}
-              onPrimaryAction={() => initiateFlow(AuthFlowType.SIGNIN)}
-              secondaryActionText={t('auth.goToOnboarding')}
-              onSecondaryAction={() => router.push('/')}
-            />
-          );
+
         default:
           return (
             <ActionPopup
               open={true}
-              title={t('auth.errorStepTitle')}
-              description={t('auth.errorStepSubtitle')}
+              title={t('auth.unexpectedStepTitle')}
+              description={t('auth.unexpectedStepSubtitle')}
               icon={<AlertTriangle className="w-16 h-16 text-amber-500" />}
-              primaryActionText={t('auth.errorStepRestart')}
+              primaryActionText={t('auth.unexpectedStepRestart')}
               onPrimaryAction={() => initiateFlow(flowType)}
             />
           );

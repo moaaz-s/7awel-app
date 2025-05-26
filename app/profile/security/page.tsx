@@ -1,12 +1,12 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ProfileLayout } from "@/components/layouts/ProfileLayout"
 import { useLanguage } from "@/context/LanguageContext"
 import { useProfileSettings } from "@/context/ProfileSettingsContext"
-import { ProfileSection } from "@/components/profile/profile-section"
-import { ProfileSwitchItem } from "@/components/profile/profile-switch-item"
-import { ProfileLinkItem } from "@/components/profile/profile-link-item"
+import { ContentCardSwitchItem } from "@/components/ui/cards/content-card-switch-item"
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { ContentCardItem } from "@/components/ui/cards/content-card-item"
+import { PageContainer } from "@/components/layouts/page-container"
 
 export default function SecurityPage() {
   const { t } = useLanguage()
@@ -24,17 +24,17 @@ export default function SecurityPage() {
   }
 
   return (
-    <ProfileLayout title={t("profilePages.security.title")} backHref="/profile">
+    <PageContainer title={t("profilePages.security.title")} backHref="/profile">
       <div className="space-y-6">
-        <ProfileSection title={t("profilePages.security.authentication")}>
+        <ContentCard title={t("profilePages.security.authentication")}>
           {/* Added Change PIN Link Item */}
-          <ProfileLinkItem
+          <ContentCardItem
             href="/profile/security/change-pin"
             label={t("profilePages.security.changePin")}
             description={t("profilePages.security.changePinDesc")}
           />
 
-          <ProfileSwitchItem
+          <ContentCardSwitchItem
             id="biometric-auth"
             label={t("profilePages.security.biometric")}
             description={t("profilePages.security.biometricDesc")}
@@ -42,17 +42,17 @@ export default function SecurityPage() {
             onCheckedChange={(checked) => updateSecuritySetting("biometricEnabled", checked)}
           />
 
-          <ProfileSwitchItem
+          <ContentCardSwitchItem
             id="two-factor"
             label={t("profilePages.security.twoFactor")}
             description={t("profilePages.security.twoFactorDesc")}
             checked={securitySettings.twoFactorEnabled}
             onCheckedChange={(checked) => updateSecuritySetting("twoFactorEnabled", checked)}
           />
-        </ProfileSection>
+        </ContentCard>
 
-        <ProfileSection title={t("profilePages.security.transaction")}>
-          <ProfileSwitchItem
+        <ContentCard title={t("profilePages.security.transaction")}>
+          <ContentCardSwitchItem
             id="transaction-pin"
             label={t("profilePages.security.requirePin")}
             description={t("profilePages.security.requirePinDesc")}
@@ -60,12 +60,12 @@ export default function SecurityPage() {
             onCheckedChange={(checked) => updateSecuritySetting("transactionPin", checked)}
           />
 
-          <ProfileLinkItem
+          <ContentCardItem
             href="/profile/security/devices"
             label={t("profilePages.security.manageDevices")}
             description={t("profilePages.security.manageDevicesDesc")}
           />
-        </ProfileSection>
+        </ContentCard>
 
         <Button 
           variant="destructive" 
@@ -75,6 +75,6 @@ export default function SecurityPage() {
           {t("profilePages.security.lockAccount")}
         </Button>
       </div>
-    </ProfileLayout>
+    </PageContainer>
   )
 }

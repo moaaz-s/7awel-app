@@ -1,0 +1,30 @@
+```mermaid
+sequenceDiagram
+    participant UI as User Interface
+    participant AuthFlow as useAuthFlow
+    participant Handler as StepHandler
+    participant API as apiService
+
+    UI->>AuthFlow: initiateFlow(SIGNIN)
+    AuthFlow->>Handler: phoneEntryHandler({phone})
+    Handler->>API: sendOtp('phone', phone)
+    API-->>Handler: {expires}
+    Handler-->>AuthFlow: nextData(phoneValidated)
+
+    AuthFlow->>UI: render OTP form
+    UI->>AuthFlow: submit OTP
+    AuthFlow->>Handler: phoneOtpHandler({otp})
+    Handler->>API: verifyOtp('phone', phone, otp)
+    API-->>Handler: {pinSet, emailVerified}
+    Handler-->>AuthFlow: nextData
+
+    AuthFlow->>Handler: tokenAcquisitionHandler
+    Handler->>API: acquireToken(phone, email, deviceInfo)
+    API-->>Handler: {accessToken, refreshToken}
+    Handler-->>AuthFlow: nextData(tokenValid)
+
+    AuthFlow->>UI: prompt PIN setup or entry
+    UI->>AuthFlow: submit PIN
+    AuthFlow->>Handler: pinEntryHandler({pin}) or pinSetupHandler
+    ...
+```

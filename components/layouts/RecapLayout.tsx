@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { PageHeader } from "@/components/ui/page-header"
+import { PageHeader } from "@/components/layouts/page-header"
 import { Button } from "@/components/ui/button"
 
 interface RecapLayoutProps {
@@ -38,10 +38,12 @@ export function RecapLayout({
 
       <Button
         onClick={onConfirm}
+        variant="gradient"
         disabled={isLoading}
-        className="w-full bg-gradient-to-r from-violet-600 to-blue-600"
-      >
-        {isLoading ? "Processing..." : confirmText}
+        isLoading={isLoading}
+        size="lg"
+        fullWidth>
+        {confirmText}
       </Button>
     </div>
   )

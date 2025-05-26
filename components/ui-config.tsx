@@ -35,7 +35,7 @@ export const colors = {
     border: "border-amber-500",
   },
   neutral: {
-    background: "bg-gray-50",
+    background: "bg-muted",
     card: "bg-white",
     border: "border-gray-200",
     divider: "border-gray-100",
@@ -69,10 +69,7 @@ export const typography = {
 
 // Border radius
 export const radius = {
-  sm: "rounded",
-  md: "rounded-md",
-  lg: "rounded-lg",
-  xl: "rounded-xl",
+  baseline: "rounded-2xl",
   full: "rounded-full",
 }
 

@@ -70,7 +70,7 @@ const getCountryFlag = (iso2: CountryIso2) => {
 interface PhoneInputProps {
   defaultCountryCode?: string
   defaultPhoneNumber?: string
-  onSubmit: (phone: string, channel: OtpChannel) => void
+  onSubmit: (countryCode: string, phoneNumber: string, channel: OtpChannel) => void
   error?: string
   isLoading?: boolean
 }
@@ -96,47 +96,16 @@ export function PhoneInput({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const initializedRef = useRef(false)
 
-  // Initialize phone and country code from defaultPhoneNumber when component mounts
+  // Initialize country code and phone from defaults on mount
   useEffect(() => {
     if (initializedRef.current) return;
-    
-    if (defaultPhoneNumber && defaultPhoneNumber.trim() !== '') {
-      // Extract country code and national number from defaultPhoneNumber
-      // The regex needs to match the country code part more accurately
-      const phoneRegex = /^\+(\d+)(\d+)$/;
-      const match = defaultPhoneNumber.match(phoneRegex);
-      
-      if (match) {
-        let dialCode = `+${match[1]}`;
-        let nationalNumber = match[2];
-        
-        // Find the largest possible dialCode that matches a country
-        for (let i = match[1].length; i > 0; i--) {
-          const testDialCode = `+${match[1].substring(0, i)}`;
-          const country = formattedCountries.find(c => c.dialCode === testDialCode);
-          
-          if (country) {
-            dialCode = testDialCode;
-            nationalNumber = match[1].substring(i) + match[2];
-            setSelectedCountry(country.iso2);
-            setSelectedCountryDialCode(dialCode);
-            setPhoneValue(nationalNumber); // Set only the national part
-            break;
-          }
-        }
-        
-        if (dialCode === `+${match[1]}`) {
-          // If no matching country was found, just use the raw values
-          setPhoneValue(nationalNumber);
-        }
-      } else {
-        // If regex doesn't match, just use as is
-        setPhoneValue(defaultPhoneNumber);
-      }
-    }
-    
+    setSelectedCountryDialCode(defaultCountryCode);
+    // Update selectedCountry based on defaultCountryCode so flag matches
+    const matchedCountry = formattedCountries.find(c => c.dialCode === defaultCountryCode);
+    if (matchedCountry) setSelectedCountry(matchedCountry.iso2);
+    setPhoneValue(defaultPhoneNumber);
     initializedRef.current = true;
-  }, [defaultPhoneNumber]);
+  }, [defaultCountryCode, defaultPhoneNumber]);
 
   useClickOutside(countryListRef as React.RefObject<HTMLElement>, () => {
     setShowCountryList(false)
@@ -176,7 +145,7 @@ export function PhoneInput({
     if (error) {
       toast({
         variant: "destructive",
-        title: t('errors.PHONE_INVALID'),
+        title: t('errors.UNKOWN_ERROR_TITLE'),
         description: error
       })
     }
@@ -226,15 +195,11 @@ export function PhoneInput({
     return validatePhone()
   }
 
-  // Updated submit handler that includes channel information
+  // Submit handler for selected channel
   const handleChannelSubmit = (selectedChannel: OtpChannel) => {
-    if (!validatePhone()) {
-      return
-    }
-
-    // Format phone with country code for submission
-    const fullPhone = `${selectedCountryDialCode}${phoneValue.replace(/\D/g, '')}`
-    onSubmit(fullPhone, selectedChannel)
+    if (!validatePhone()) return;
+    const national = phoneValue.replace(/\D/g, '');
+    onSubmit(selectedCountryDialCode, national, selectedChannel);
   }
 
   // Get the dynamic message based on channel selection

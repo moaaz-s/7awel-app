@@ -3,7 +3,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { info } from '@/utils/logger';
-import { getSession } from '@/utils/storage';
+import { getSession, isPinForgotten } from '@/utils/storage';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine'; 
 import { usePathname } from 'next/navigation';
@@ -15,9 +15,11 @@ const HOME_ROUTE = '/home';
 
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
   // Destructure currentStep as well
-  const { authStatus, getAuthToken, logout } = useAuth();
+  const { authStatus, isTokenReady, lock } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+
 
   const computeRedirect = useCallback((): string | null => {
     if (!pathname || authStatus === AuthStatus.Pending) return null;
@@ -35,7 +37,6 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     }
 
     if (
-      authStatus === AuthStatus.Locked ||
       authStatus === AuthStatus.PinSetupPending ||
       authStatus === AuthStatus.RequiresPin
     ) {
@@ -53,35 +54,40 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     }
   }, [computeRedirect, pathname, router]);
 
+  // Redirect to sign-in if a PIN reset was initiated
+  // TODO: Do we really ever set authStatus to AuthStatus.Pending
+  useEffect(() => {
+    (async () => {
+      if (authStatus !== AuthStatus.Pending && await isPinForgotten() && pathname !== '/sign-in') {
+        info('[AppInitializer] Detected PIN_FORGOT flag, redirecting to /sign-in');
+        router.replace('/sign-in');
+      }
+    })();
+  }, [authStatus, pathname, router]);
+
   // Clear expired local session on init
+  // TODO: Do we really need this, if so we have to refactor the session management.
   useEffect(() => {
     (async () => {
       try {
         const session = await getSession();
         if (session && session.expiresAt <= Date.now()) {
-          info('[AppInitializer] Session expired, clearing and logging out');
-          await logout();
+          info('[AppInitializer] Session expired, locking app');
+          await lock();
         }
       } catch (err) {
         console.error('[AppInitializer] Error checking session expiry:', err);
       }
     })();
-  }, [logout]);
+  }, [lock]);
 
-  // If a token is stored, redirect unauthenticated users to sign-in
+  // Redirect to sign-in if token becomes valid for unauthenticated user
   useEffect(() => {
-    (async () => {
-      try {
-        const token = await getAuthToken();
-        if (token && authStatus === AuthStatus.Unauthenticated && pathname !== '/sign-in') {
-          info('[AppInitializer] Token found, redirecting to /sign-in');
-          router.replace('/sign-in');
-        }
-      } catch (err) {
-        console.error('[AppInitializer] Error checking stored token:', err);
-      }
-    })();
-  }, [getAuthToken, authStatus, pathname, router]);
+    if (isTokenReady && authStatus === AuthStatus.Unauthenticated && pathname !== '/sign-in') {
+      info('[AppInitializer] Token valid, redirecting to /sign-in');
+      router.replace('/sign-in');
+    }
+  }, [isTokenReady, authStatus, pathname, router]);
 
   // Decide render: while pending OR redirecting we show SplashScreen
   const redirectTarget = computeRedirect();

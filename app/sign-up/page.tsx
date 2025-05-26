@@ -1,6 +1,6 @@
 "use client"
 
-import { AuthFlowType } from '@/constants/auth-flows';
+import { AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
 import { AuthFlowManager } from '@/components/auth/AuthFlowManager';
 
 export default function SignUp() {

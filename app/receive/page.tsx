@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo } from "react"
 import { loadPlatform } from "@/platform"
 import { useData } from "@/context/DataContext";
 import type { QRData } from "@/types"; // Import QRData type
 import { CopyButton } from "@/components/copy-button"
 import { QRCodeDisplay } from "@/components/qr-code-display"
-import { PageContainer } from "@/components/ui/page-container"
+import { PageContainer } from "@/components/layouts/page-container"
 import { ShareButton } from "@/components/share-button"
 import { spacing, typography } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
@@ -37,7 +37,7 @@ export default function ReceivePage() {
   const { user } = useData() // Get user from DataContext
   const { t } = useLanguage()
   // Replicate QR data generation logic
-  const [qrData] = useState(() => {
+  const qrData = useMemo(() => {
     if (!user) return { qrString: "", data: null }; // Handle user being null initially
     const qrPayload: QRData = {
       userId: user.id,
@@ -46,7 +46,7 @@ export default function ReceivePage() {
     };
     const qrString = JSON.stringify(qrPayload);
     return { qrString, data: qrPayload };
-  })
+  }, [user]);
 
   // Generate a PayFlow ID from first/last name
   const PersonalId = user ? `${user.firstName}.${user.lastName}`.toLowerCase() + "@7awel" : "user@7awel"
@@ -55,7 +55,7 @@ export default function ReceivePage() {
   const paymentLink = `https://7awel.money/pay/${PersonalId}`
 
   return (
-    <PageContainer title={t("transaction.receive")} backHref="/home">
+    <PageContainer title={""} backHref="/home">
       <div className={`flex-1 flex flex-col justify-between w-full max-w-md mx-auto text-center`}>
 
         <div className={spacing.stack_sm}>
@@ -64,7 +64,9 @@ export default function ReceivePage() {
         </div>
 
         <div className={`${spacing.stack_sm} flex flex-col`}>
-          <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />
+          {qrData.qrString && (
+            <QRCodeDisplay value={qrData.qrString} size={256} className="mx-auto" />
+          )}
           
           <div className="flex items-center justify-center gap-2">
             <code className="bg-gray-100 px-3 py-1 rounded-md text-sm">{PersonalId}</code>

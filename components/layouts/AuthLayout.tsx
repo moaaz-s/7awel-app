@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { PageHeader } from "@/components/ui/page-header"
+import { PageHeader } from "@/components/layouts/page-header"
 
 interface AuthLayoutProps {
   children: ReactNode

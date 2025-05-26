@@ -3,10 +3,13 @@
 import { useState, useMemo } from "react"
 import { TransactionCard } from "@/components/ui/transaction-card"
 import { useData } from "@/context/DataContext"
-import { PageContainer } from "@/components/ui/page-container"
-import { spacing, typography } from "@/components/ui-config"
+import { PageContainer } from "@/components/layouts/page-container"
+import { spacing } from "@/components/ui-config"
 import { SearchInput } from "@/components/ui/search-input"
 import { useLanguage } from "@/context/LanguageContext"
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { transactionService } from "@/services/transaction-service"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 // Interface for grouped transactions
 interface TransactionGroup {
@@ -18,20 +21,23 @@ interface TransactionGroup {
 // Transaction group component
 function TransactionGroupComponent({ group }: { group: TransactionGroup }) {
   return (
-    <div className={spacing.stack}>
-      <h3 className={`${typography.small} ${typography.muted} px-1 font-medium`}>{group.formattedDate}</h3>
-      <div className={spacing.stack}>
+    <ContentCard title={group.formattedDate} elevated={true} padding="sm">
+      <div className={spacing.stack_sm}>
         {group.transactions.map((transaction) => (
-          <TransactionCard key={transaction.id} transaction={transaction} showStatus={true} />
+          <TransactionCard 
+            key={transaction.id} 
+            transaction={transaction} 
+            showStatus={false}  
+          />
         ))}
       </div>
-    </div>
+    </ContentCard>
   )
 }
 
 export default function TransactionsPage() {
-  const { transactions, formatDate } = useData()
-  const { t } = useLanguage()
+  const { transactions, isLoadingTransactions } = useData()
+  const { t, language } = useLanguage()
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
 
@@ -40,34 +46,30 @@ export default function TransactionsPage() {
     return transactions.filter((tx) => tx.name.toLowerCase().includes(searchQuery.toLowerCase()))
   }, [transactions, searchQuery])
 
-  // Group transactions by date
+  // Group transactions by relative date for display
   const groupedTransactions = useMemo(() => {
-    const groups: Record<string, TransactionGroup> = {}
-
-    filteredTransactions.forEach((tx) => {
-      const formattedDate = formatDate(tx.date)
-
-      if (!groups[tx.date]) {
-        groups[tx.date] = {
-          date: tx.date,
-          formattedDate,
-          transactions: [],
-        }
+    return transactionService.groupTransactionsByDate(
+      filteredTransactions,
+      (date) => {
+        const dateObj = typeof date === "string" ? new Date(date) : date;
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        const isSameDay = (d1: Date, d2: Date) =>
+          d1.toDateString() === d2.toDateString();
+        if (isSameDay(dateObj, today)) return t("transaction.today_label");
+        if (isSameDay(dateObj, yesterday)) return t("transaction.yesterday_label");
+        return dateObj.toLocaleDateString(language === "ar" ? "ar" : "en-US", {
+          day: "numeric",
+          month: "short",
+        });
       }
-
-      groups[tx.date].transactions.push({
-        ...tx,
-        date: formattedDate,
-      })
-    })
-
-    // Convert to array and sort by date (newest first)
-    return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [filteredTransactions, formatDate])
+    );
+  }, [filteredTransactions, t, language]);
 
   return (
     <PageContainer title={t("transaction.transactions")} backHref="/home">
-      <div className="p-4 bg-white border-b mb-4">
+      <div className="mb-4">
         <SearchInput
           placeholder={t("transaction.searchTransaction")}
           value={searchQuery}
@@ -76,6 +78,12 @@ export default function TransactionsPage() {
           onFilterClick={() => setShowFilters(!showFilters)}
         />
       </div>
+
+      {isLoadingTransactions && transactions.length > 0 && (
+        <div className="flex justify-center py-2">
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
 
       {groupedTransactions.length > 0 ? (
         <div className={spacing.section}>

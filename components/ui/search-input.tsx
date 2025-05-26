@@ -32,13 +32,13 @@ export function SearchInput({
         </div>
         <Input
           placeholder={placeholder}
-          className={isRTL ? "pr-9" : "pl-9"}
+          className={`h-8 rounded-full ${isRTL ? "pr-9" : "pl-9"}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
       </div>
       {showFilterButton && (
-        <Button variant="outline" size="icon" onClick={onFilterClick}>
+        <Button variant="white" size="icon" shadow="none" onClick={onFilterClick} className="h-8 w-8 rounded-full">
           <FilterIcon className="h-4 w-4" />
         </Button>
       )}

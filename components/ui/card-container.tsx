@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { layouts, radius, shadows } from "@/components/ui-config"
+import { colors, layouts, radius, shadows } from "@/components/ui-config"
 
 interface CardContainerProps {
   children: ReactNode
@@ -29,10 +29,11 @@ export function CardContainer({
   return (
     <div
       className={`
-        ${radius.xl}
+        ${radius.baseline}
         ${bordered ? "border" : ""}
         ${shadow ? shadows.sm : ""}
-        bg-white overflow-hidden
+        ${colors.neutral.card}
+        overflow-hidden
         ${hoverable ? "hover:bg-gray-50 cursor-pointer" : ""}
         ${className}
       `}

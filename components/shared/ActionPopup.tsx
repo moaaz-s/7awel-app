@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 
 interface ActionPopupProps {
   isOpen?: boolean;

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useCallback } from "react"
-import { info, warn, error as logError } from "@/utils/logger"
+import { info, warn, error as logError, error } from "@/utils/logger"
 import { useLanguage } from "@/context/LanguageContext"
 
 interface NotificationSettings {
@@ -59,12 +59,12 @@ export function ProfileSettingsProvider({ children }: { children: React.ReactNod
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       info(`API: Updated notification setting ${key} to ${value}`);
-      logError(t("profilePages.settings.saveSuccess"));
-    } catch (error) {
-      logError(`Failed to update notification setting ${key}:`, error);
+      info(t("profilePages.settings.saveSuccess"));
+    } catch (e: any) {
+      error(`Failed to update notification setting ${key}:`, e);
       setNotificationSettings(originalSettings);
-      logError(t("profilePages.settings.saveError"));
-      throw error;
+      error(t("profilePages.settings.saveError"));
+      throw e;
     }
   }, [notificationSettings, t])
 
@@ -81,12 +81,12 @@ export function ProfileSettingsProvider({ children }: { children: React.ReactNod
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       info(`API: Updated security setting ${key} to ${value}`);
-      logError(t("profilePages.settings.saveSuccess"));
-    } catch (error) {
-      logError(`Failed to update security setting ${key}:`, error);
+      info(t("profilePages.settings.saveSuccess"));
+    } catch (e: any) {
+      error(`Failed to update security setting ${key}:`, e);
       setSecuritySettings(originalSettings);
-      logError(t("profilePages.settings.saveError"));
-      throw error;
+      error(t("profilePages.settings.saveError"));
+      throw e;
     }
   }, [securitySettings, t])
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/auth/AuthContext';
-import { PinEntry } from '@/components/pin-entry';
+import { PinPad } from '@/components/pin-pad';
 import PinSetup from '@/components/auth/PinSetup';
 import { useLanguage } from '@/context/LanguageContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -37,7 +37,7 @@ export function PinChange({ onSuccess, onCancel }: PinChangeProps) {
         } catch (err) {
             console.error("Error checking current PIN:", err);
             // Use context error if available, otherwise generic
-            setLocalError(authError || t('errors.genericError')); 
+            setLocalError(authError || t('errors.PIN_UNEXPECTED_ISSUE')); 
         } finally {
             setIsVerifying(false);
         }
@@ -56,7 +56,7 @@ export function PinChange({ onSuccess, onCancel }: PinChangeProps) {
             }
         } catch (err) {
             console.error("Error setting new PIN:", err);
-             setLocalError(authError || t('errors.genericError'));
+             setLocalError(authError || t('errors.PIN_UNEXPECTED_ISSUE'));
         } finally {
             setIsSetting(false);
         }
@@ -78,8 +78,8 @@ export function PinChange({ onSuccess, onCancel }: PinChangeProps) {
             {step === 'VERIFYING_CURRENT' && (
                 <div>
                     <h3 className="text-lg font-medium mb-4 text-center">{t('pinPad.updateTitleCurrent')}</h3>
-                    <PinEntry
-                        onComplete={handleCurrentPinComplete}
+                    <PinPad
+                        onValidPin={handleCurrentPinComplete}
                         isLoading={effectiveIsLoading}
                         showBiometric={false} // Biometrics not suitable for verification
                         showForgotPin={false} // Assuming a separate 'forgot pin' flow exists

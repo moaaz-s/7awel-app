@@ -5,7 +5,7 @@ import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { useData } from "@/context/DataContext"
 import { TransactionCard } from "@/components/ui/transaction-card"
 import { patterns, spacing } from "@/components/ui-config"
@@ -15,7 +15,9 @@ import { PromotionalSlider } from "@/components/ui/promotional-slider"
 import { useEffect } from "react"
 import { apiService } from "@/services/api-service"
 import { Promotion } from "@/types"
-import { ContentCard } from "@/components/ui/content-card"
+import { ContentCard } from "@/components/ui/cards/content-card"
+import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
+import { BottomNavigation } from "@/components/navigation/BottomNavigation"
 
 function ActionButton({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
@@ -86,16 +88,13 @@ export default function HomePage() {
           <div className="w-10" /> {/* Empty div for spacing */}
           <div /> {/* Empty div to center the avatar */}
           <Link href="/profile" className="block">
-            <Avatar className="h-10 w-10 border border-white/20">
-              {/* {user?.avatar ? (
-                <AvatarImage src={user.avatar} alt={displayName} onError={() => console.log('Avatar image failed to load')} />
-              ) : null} */}
-              {/* {!user?.avatar && ( */}
-                <AvatarFallback className="bg-white/20 text-white">
-                  {userInitials}
-                </AvatarFallback>
-              {/* )} */}
-            </Avatar>
+            <Avatar 
+              size="md" 
+              border
+              initials={userInitials}
+              fallbackClassName="bg-white/20 text-white"
+              className="border-white/20"
+            />
           </Link>
         </header>
 
@@ -128,16 +127,15 @@ export default function HomePage() {
         )}
 
         {/* Recent transactions */}
-        <ContentCard elevated={true}>
-          <div className="flex items-center justify-between px-4 py-3 text-muted-foreground">
-            <h3 className="text-base font-medium">{t("transaction.transactions")}</h3>
-            <div className="ml-auto">
-              <h3 className="text-base font-medium">{t("transaction.amount")}</h3>
-            </div>
+        <ContentCard elevated={true} padding="sm">
+          <div className="px-4 py-3">
+            <ContentCardRowItem label={t("transaction.transactions")} boldLabel={false}>
+              {t("transaction.amount")}
+            </ContentCardRowItem>
           </div>
-          <div className="py-4">
+          <div>
             {recentTransactions.length > 0 ? (
-              <div className="space-y-1">
+              <div className={spacing.stack_sm}>
                 {recentTransactions.map((tx) => (
                   <TransactionCard key={tx.id} transaction={tx} />
                 ))}
@@ -158,32 +156,7 @@ export default function HomePage() {
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
-        <div className="mx-auto flex h-16 max-w-md items-center justify-around px-4">
-          <Link href="/" className="group flex flex-col items-center justify-center text-center">
-            <Image
-              src="/brand/7awel - lettermark.svg"
-              alt="Home"
-              width={24}
-              height={24}
-              className="h-6 w-6 text-primary"
-            />
-            <span className="mt-1 text-xs font-medium text-primary">{t("home.home")}</span>
-          </Link>
-          <Link href="/transactions" className="group flex flex-col items-center justify-center text-center">
-            <div className="h-6 w-6 text-muted-foreground">
-              <HistoryIcon className="h-6 w-6" />
-            </div>
-            <span className="mt-1 text-xs text-muted-foreground">{t("transaction.transactions")}</span>
-          </Link>
-          <Link href="/cash-out" className="group flex flex-col items-center justify-center text-center">
-            <div className="h-6 w-6 text-muted-foreground">
-              <CashOutIcon className="h-6 w-6" />
-            </div>
-            <span className="mt-1 text-xs text-muted-foreground">{t("cashOut.title")}</span>
-          </Link>
-        </div>
-      </nav>
+      <BottomNavigation />
     </div>
   )
 }

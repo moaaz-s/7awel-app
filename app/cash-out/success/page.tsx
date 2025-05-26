@@ -23,10 +23,10 @@ export default function CashOutSuccessPage() {
 
   useEffect(() => {
     // Retrieve cash out details from session storage
-    const storedDetails = transactionService.retrieveTransactionDetails<CashOutDetails>("cashOutDetails")
-    if (storedDetails) {
-      setDetails(storedDetails)
-    }
+    // const storedDetails = transactionService.retrieveTransactionDetails<CashOutDetails>("cashOutDetails")
+    // if (storedDetails) {
+    //   setDetails(storedDetails)
+    // }
   }, [])
 
   // Create share text based on transaction details
@@ -38,7 +38,7 @@ export default function CashOutSuccessPage() {
     <SuccessLayout
       title={t("cashOut.successTitle")}
       description={t("cashOut.successDesc")}
-      primaryActionText={t("cashOut.backToHome")}
+      primaryActionText={t("common.backHome")}
       primaryActionHref="/home"
       shareTitle={t("cashOut.shareTitle")}
       shareText={shareText}

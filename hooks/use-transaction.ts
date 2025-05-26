@@ -34,18 +34,18 @@ export function useTransaction() {
 
       // --- Input Validation --- 
       if (amount <= 0) {
-        const errorMsg = t("validation.sendMoney.amountPositive")
+        const errorMsg = t("uiErrors.invalidAmount")
         setError(errorMsg)
         return { success: false, error: errorMsg }
       }
       if (amount > currentBalance) {
-        const errorMsg = t("validation.sendMoney.insufficientFunds")
+        const errorMsg = t("uiErrors.insufficientFunds")
         setError(errorMsg)
         return { success: false, error: errorMsg }
       }
       const maxNoteLength = 100;
       if (note && note.length > maxNoteLength) {
-        const errorMsg = t("validation.sendMoney.noteTooLong", { maxLength: String(maxNoteLength) })
+        const errorMsg = t("uiErrors.noteTooLong", { maxLength: String(maxNoteLength) })
         setError(errorMsg)
         return { success: false, error: errorMsg }
       }

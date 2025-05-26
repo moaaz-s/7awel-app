@@ -6,15 +6,14 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { PenIcon } from "@/components/icons/ui-icons"
 import { useData } from "@/context/DataContext";
-import { PageContainer } from "@/components/ui/page-container"
-import { ContentCard } from "@/components/ui/content-card"
+import { PageContainer } from "@/components/layouts/page-container"
+import { ContentCard } from "@/components/ui/cards/content-card"
 import { DateDisplay } from "@/components/ui/date-display"
 import { transactionService } from "@/services/transaction-service"
 import type { Transaction } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
 import { toast } from "@/hooks/use-toast"
-import { Toaster } from "@/components/ui/toaster"
-import { ContentCardRowItem } from "@/components/ui/content-card-row-item";
+import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item";
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { getTransaction, formatDate, formatCurrency } = useData()
@@ -137,8 +136,6 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
           </ContentCardRowItem>
         </ContentCard>
         
-        {/* This renders the toast notifications */}
-        <Toaster />
       </div>
     </PageContainer>
   )
