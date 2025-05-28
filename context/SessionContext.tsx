@@ -13,10 +13,10 @@ import React, {
 } from 'react';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine';
-import { error as logError, info, warn } from "@/utils/logger";
-import * as storage from "@/utils/storage";
+import { info } from "@/utils/logger";
 import { Session, SessionStatus } from "@/context/auth/auth-types";
-import { SESSION_TTL_MS, SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
+import { SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
+import { SessionService } from '@/services/session-service';
 
 interface SessionContextValue {
   /** Current session state */
@@ -29,6 +29,8 @@ interface SessionContextValue {
   lock: () => Promise<void>;
   /** Refresh session activity */
   refreshActivity: () => Promise<void>;
+  /** Last error message */
+  error: string | null;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -38,93 +40,42 @@ interface ProviderProps {
 }
 
 export function SessionProvider({ children }: ProviderProps) {
-  const { authStatus, validatePin } = useAuth();
+  const { authStatus } = useAuth();
   const [session, setSession] = useState<Session | null>(null);
-
-  // Get session status based on current state
-  const getStatus = (session: Session | null): SessionStatus => {
-    if (!session) return SessionStatus.Inactive;
-    if (session.expiresAt < Date.now()) return SessionStatus.Expired;
-    if (!session.isActive) return SessionStatus.Locked;
-    if (!session.pinVerified) return SessionStatus.Locked;
-    return SessionStatus.Active;
-  };
-
-  async function voidSession(): Promise<boolean> {
-    try {
-      setSession(null);
-      await storage.clearSession();
-    } catch (e) {
-      logError("Error: Couldn't void session", e)
-      return false;
-    }
-
-    return true;
-  }
-
-  // Load existing session; returns true if a valid session was set
-  async function initiateSession(): Promise<boolean> {
-    const saved = await storage.getSession();
-    if (saved) {
-      if (saved.expiresAt < Date.now()) {
-        await voidSession();
-        return false;
-      }
-      setSession(saved);
-      return true;
-    }
-    return false;
-  }
-
-  // Create and persist a new session; returns true on success
-  async function createSession(): Promise<boolean> {
-    const newSession: Session = {
-      isActive: true,
-      lastActivity: Date.now(),
-      expiresAt: Date.now() + SESSION_TTL_MS,
-      pinVerified: true
-    };
-    setSession(newSession);
-    await storage.setSession(newSession);
-    return true;
-  }
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize session from storage
   useEffect(() => {
-    initiateSession();
+    SessionService.loadSession().then(setSession);
   }, []);
 
   // Monitor auth status and manage session lifecycle
   useEffect(() => {
     (async () => {
-      if (authStatus === AuthStatus.Authenticated) {
-        const loaded = await initiateSession();
-        if (!loaded) {
-          await createSession();
-        }
-      } else if (authStatus === AuthStatus.Unauthenticated) {
-        await voidSession();
-      }
+      const newSession = await SessionService.initializeSession(
+        authStatus === AuthStatus.Authenticated
+      );
+      setSession(newSession);
     })();
   }, [authStatus]);
 
   // Activity monitoring
   useEffect(() => {
-    if (!session?.isActive) return
+    if (!session?.isActive) return;
 
-    const events = ["visibilitychange", "mousemove", "keydown", "touchstart", "focus"] as const
-    const handler = () => refreshActivity()
+    const events = ["visibilitychange", "mousemove", "keydown", "touchstart", "focus"] as const;
+    const handler = () => refreshActivity();
     
     for (const evt of events) {
-      window.addEventListener(evt, handler)
+      window.addEventListener(evt, handler);
     }
     
     return () => {
       for (const evt of events) {
-        window.removeEventListener(evt, handler)
+        window.removeEventListener(evt, handler);
       }
-    }
-  }, [session?.isActive])
+    };
+  }, [session?.isActive]);
 
   // Auto-lock timer
   useEffect(() => {
@@ -141,47 +92,40 @@ export function SessionProvider({ children }: ProviderProps) {
   const activate = async (pin: string): Promise<boolean> => {
     if (authStatus !== AuthStatus.Authenticated) return false;
     
-    // Validate PIN first
-    const isValid = await validatePin(pin);
-    if (!isValid) return false;
-
-    // If PIN is valid, create or refresh session
-    return await createSession();
+    setError(null);
+    const result = await SessionService.validatePinAndCreateSession(pin);
+    
+    if (result.valid && result.session) {
+      setSession(result.session);
+      return true;
+    }
+    
+    if (result.error) {
+      setError(result.error);
+    }
+    return false;
   };
 
   const lock = async () => {
     if (!session) return;
-
-    const lockedSession: Session = {
-      ...session,
-      isActive: false,
-      pinVerified: false
-    };
-
+    const lockedSession = await SessionService.lockSession(session);
     setSession(lockedSession);
-    await storage.setSession(lockedSession);
   };
 
   const refreshActivity = async () => {
     if (!session?.isActive) return;
-
-    const refreshed: Session = {
-      ...session,
-      lastActivity: Date.now(),
-      expiresAt: Date.now() + SESSION_TTL_MS
-    };
-    
-    setSession(refreshed);
-    await storage.setSession(refreshed);
+    const refreshedSession = await SessionService.refreshActivity(session);
+    setSession(refreshedSession);
   };
 
   return (
     <SessionContext.Provider value={{
       session,
-      status: getStatus(session),
+      status: SessionService.getStatus(session),
       activate,
       lock,
-      refreshActivity
+      refreshActivity,
+      error
     }}>
       {children}
     </SessionContext.Provider>
@@ -196,4 +140,4 @@ export function useSession() {
   return context;
 }
 
-export default SessionContext
+export default SessionContext;

@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { KeypadButton } from "@/components/ui/keypad-button"
 import { useLanguage } from "@/context/LanguageContext"
 import { FingerprintIcon, BackspaceIcon, ArrowRightIcon } from "@/components/icons"
-import { isLocked, getLockUntil, validatePin, clearLockout } from '@/utils/pin-service';
 import { useData } from "@/context/DataContext"
 import { Avatar } from "./ui/avatar"
+import { useSession } from "@/context/SessionContext"
 
 interface PinPadProps {
   welcome_message?: string
@@ -31,10 +31,10 @@ export function PinPad({
   error = null,
   onForgotPin,
   pinLength = 4,
-  // Useful for PIN setting.
   alwaysValid = false
 }: PinPadProps) {
   const { t, isRTL } = useLanguage()
+  const { activate, error: sessionError } = useSession()
   const { available: bioAvailable, authenticate } = useBiometrics()
   const [pin, setPin] = useState<string[]>([])
   const [isPinComplete, setIsPinComplete] = useState(false)
@@ -42,19 +42,18 @@ export function PinPad({
   const [bioFailed, setBioFailed] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [shake, setShake] = useState(false)
-  const [locked, setLocked] = useState(false);
-  const [lockUntil, setLockUntil] = useState<number | null>(null);
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
+  const [locked, setLocked] = useState(false)
+  const [lockUntil, setLockUntil] = useState<number | null>(null)
+  const [remaining, setRemaining] = useState<number | null>(null)
 
-  const { user } = useData();
+  const { user } = useData()
 
   // Format milliseconds to mm:ss
   function formatRemaining(ms: number) {
-    const total = Math.ceil(ms / 1000);
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    const total = Math.ceil(ms / 1000)
+    const m = Math.floor(total / 60)
+    const s = total % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
   }
 
   const showBiometricButton = showBiometric && bioAvailable && pin.length === 0
@@ -67,50 +66,51 @@ export function PinPad({
     }
   }, [locked])
 
-  // On mount, check lock state once
+  // On mount and when session error changes, check lock state
   useEffect(() => {
-    const checkLockState = async () => {
-      const isLockedNow = await isLocked();
-      const until = await getLockUntil();
-      setLocked(isLockedNow);
-      setLockUntil(until);
-      setRemaining(until !== null ? until - Date.now() : null);
-      if (!isLockedNow) {
-        await clearLockout();
+    if (sessionError?.includes('locked')) {
+      setLocked(true)
+      // Extract lock time from error message
+      const timeMatch = sessionError.match(/until (.*?)(?:\.|$)/)
+      if (timeMatch) {
+        const lockTime = new Date(timeMatch[1]).getTime()
+        setLockUntil(lockTime)
+        setRemaining(lockTime - Date.now())
       }
-    };
-    checkLockState();
-  }, []);
+    } else {
+      setLocked(false)
+      setLockUntil(null)
+      setRemaining(null)
+    }
+  }, [sessionError])
 
   // Update countdown every second when locked
   useEffect(() => {
-    if (!locked || lockUntil === null) return;
+    if (!locked || lockUntil === null) return
     const intervalId = setInterval(() => {
-      const diff = lockUntil - Date.now();
+      const diff = lockUntil - Date.now()
       if (diff <= 0) {
-        clearInterval(intervalId);
-        clearLockout().then(() => {
-          setLocked(false);
-          setLockUntil(null);
-          setRemaining(null);
-        });
+        clearInterval(intervalId)
+        setLocked(false)
+        setLockUntil(null)
+        setRemaining(null)
       } else {
-        setRemaining(diff);
+        setRemaining(diff)
       }
-    }, 1000);
-    return () => clearInterval(intervalId);
-  }, [locked, lockUntil]);
+    }, 1000)
+    return () => clearInterval(intervalId)
+  }, [locked, lockUntil])
 
   // Handle key press animation
   const handleKeyPress = (key: string) => {
-    if (locked) return;
-    setActiveKey(key);
-    setTimeout(() => setActiveKey(null), 150); // Reset after animation time
-  };
+    if (locked) return
+    setActiveKey(key)
+    setTimeout(() => setActiveKey(null), 150) // Reset after animation time
+  }
 
   const handleDigitClick = (digit: string) => {
-    if (locked || pin.length >= pinLength) return;
-    handleKeyPress(digit);
+    if (locked || pin.length >= pinLength) return
+    handleKeyPress(digit)
     const newPin = [...pin, digit]
     setPin(newPin)
     
@@ -119,43 +119,38 @@ export function PinPad({
       setIsPinComplete(true)
       // auto-submit when full
       if (!locked && !isLoading) {
-        handleKeyPress('submit');
-        setSubmitted(true);
-        handleSubmit(newPin.join(''));
+        handleKeyPress('submit')
+        setSubmitted(true)
+        handleSubmit(newPin.join(''))
       }
     }
   }
 
   const handleSubmit = async (inputPin: string) => {
     if (!locked && inputPin.length === pinLength && !isLoading) {
-      handleKeyPress('submit');
-      setSubmitted(true);
+      handleKeyPress('submit')
+      setSubmitted(true)
       if (alwaysValid) {
-        onValidPin(inputPin);
+        onValidPin(inputPin)
       } else {
-        const result = await validatePin(inputPin);
-        if (result.valid) {
-          onValidPin(inputPin);
-        } else if (result.locked) {
-          setLocked(true);
-          const until = result.lockUntil ?? null;
-          setLockUntil(until);
-          setRemaining(until !== null ? until - Date.now() : null);
+        const valid = await activate(inputPin)
+        if (valid) {
+          onValidPin(inputPin)
         } else {
           // Clear entered PIN after an invalid attempt
-          setPin([]);
-          setIsPinComplete(false);
-          setShake(true);
-          setTimeout(() => setShake(false), 400);
+          setPin([])
+          setIsPinComplete(false)
+          setShake(true)
+          setTimeout(() => setShake(false), 400)
         }
       }
     }
   }
 
   const handleDelete = () => {
-    if (locked) return;
+    if (locked) return
     if (pin.length > 0) {
-      handleKeyPress('delete');
+      handleKeyPress('delete')
       setPin(pin.slice(0, -1))
       setIsPinComplete(false)
     }
@@ -163,7 +158,7 @@ export function PinPad({
 
   const handleBiometricAuth = async () => {
     if (!locked && showBiometric && bioAvailable && !isLoading) {
-      handleKeyPress('bio');
+      handleKeyPress('bio')
       const ok = await authenticate("Authenticate to unlock")
       if (ok) {
         onValidPin("bio")
@@ -209,18 +204,18 @@ export function PinPad({
 
   // Clear dots & shake on each invalid submit
   useEffect(() => {
-    let timer: number;
-    if (submitted && error) {
-      setPin([]);
-      setIsPinComplete(false);
-      setShake(true);
-      timer = window.setTimeout(() => setShake(false), 400);
-      setSubmitted(false);
+    let timer: number
+    if (submitted && (error || sessionError)) {
+      setPin([])
+      setIsPinComplete(false)
+      setShake(true)
+      timer = window.setTimeout(() => setShake(false), 400)
+      setSubmitted(false)
     }
     return () => {
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [submitted, error]);
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [submitted, error, sessionError])
 
   // Render PIN dots in the correct order for RTL
   const renderPinDots = () => {
