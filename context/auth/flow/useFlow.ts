@@ -24,6 +24,7 @@ import { isTokenExpired } from '@/utils/token-utils';
 import { getSession } from '@/utils/storage';
 import { FlowPayload, StepData } from '../auth-types';
 import { getDeviceInfo } from '@/utils/device-fingerprint';
+import { FlowService } from '@/services/flow-service';
 
 /**
  * Custom hook for managing authentication flows.
@@ -40,29 +41,7 @@ export function useFlow(
    * @returns Promise resolving to FlowCtx context object
    */
   const buildFlowCtx = useCallback(async (data?: StepData): Promise<FlowCtx> => {
-    // Check local session validity
-    const session = await getSession();
-    const sessionActive = Boolean(session && session.expiresAt > Date.now());
-    // Validate token exists and isn't expired
-    const authToken = await getSecureItem(AUTH_TOKEN);
-    // Validate token exists and isn't expired
-    const tokenValid = Boolean(authToken) && !isTokenExpired(authToken);
-    const pinSetFlag = await serviceIsPinSet();
-    const stepData = data || state.stepData;
-    return {
-      tokenValid,
-      phoneValidated: Boolean(stepData.phoneValidated),
-      emailVerified: Boolean(stepData.emailVerified),
-      pinSet: pinSetFlag || Boolean(stepData.pinSet),
-      pinVerified: Boolean(stepData.pinVerified),
-      sessionActive: sessionActive,
-      // Add expiration timestamps
-      otpExpiry: stepData.otpExpires,
-      emailOtpExpiry: stepData.emailOtpExpires,
-      // Add user profile data
-      firstName: stepData.firstName,
-      lastName: stepData.lastName
-    };
+    return FlowService.buildFlowContext(data || state.stepData);
   }, [state.stepData]);
 
   /**
@@ -79,50 +58,30 @@ export function useFlow(
   const initiateFlow = useCallback(async (flowType: AuthFlowType, initialData?: StepData) => {
     info(`[AuthFlow] Initiating flow: ${flowType}`);
     
-    // Explicitly set loading to true during initialization
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      // Get device information for the flow
-      const deviceInfo = await getDeviceInfo();
-      dispatch({ type: 'SET_DEVICE_INFO', payload: deviceInfo });
+      const flowInit = await FlowService.initiateFlow(flowType, initialData);
       
-      // Clear any previous errors
-      dispatch({ type: 'CLEAR_ERROR' });
-      
-      // Build flow context
-      const ctx = await buildFlowCtx(initialData);
-      
-      // Get complete flow steps without filtering to avoid premature step filtering
-      const steps = getFlowTypeSteps(flowType);
-      
-      if (steps.length === 0) {
-        throw new Error(`No valid steps for flow: ${flowType}`);
-      }
-      
-      // Determine the first step / -1 is exceptional to account for the fact that there is no previous step
-      const initialIndex = getNextValidIndex(steps, -1, ctx);
-      
-      // Start the flow
       dispatch({
         type: 'START_FLOW',
         payload: {
           type: flowType,
-          initialIndex,
+          initialIndex: flowInit.initialIndex,
           ...(initialData && { initialData })
         }
       });
+
+      dispatch({ type: 'SET_DEVICE_INFO', payload: flowInit.deviceInfo });
       
-      info(`[AuthFlow] Started flow: ${flowType}, first step: ${initialIndex !== null ? steps[initialIndex].step : 'null'}`);
+      info(`[AuthFlow] Started flow: ${flowType}, first step: ${flowInit.initialIndex !== null ? flowInit.steps[flowInit.initialIndex].step : 'null'}`);
     } catch (error: any) {
       logError('[AuthFlow] Error initializing flow:', error);
       dispatch({ type: 'SET_FLOW_ERROR', payload: t('errors.FLOW_INIT_FAILED') });
     } finally {
-      // Always set loading to false when initialization is complete,
-      // regardless of success or failure
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [dispatch, buildFlowCtx, t]);
+  }, [dispatch, t]);
 
   /**
    * Advances the current authentication flow to the next step.
@@ -140,7 +99,6 @@ export function useFlow(
     dispatch({ type: 'CLEAR_ERROR' });
     info(`[AuthFlow] Advancing flow from step: ${state.currentStep}`, "Payload:", payload);
 
-    // Set loading state to true during the step transition
     dispatch({ type: 'SET_LOADING', payload: true });
 
     try {
@@ -149,27 +107,22 @@ export function useFlow(
       }
       
       const stepKey = state.currentStep;
-      const handler = STEP_HANDLERS[stepKey as keyof typeof STEP_HANDLERS] as StepHandler | undefined;
+      const handler = STEP_HANDLERS[stepKey as keyof typeof STEP_HANDLERS];
       
-      info("[AuthFlow] Steps:", state.activeFlow?.steps);
-      info("[AuthFlow] Current step:", stepKey, payload);
-      info("[AuthFlow] Handler:", handler);
-
       if (!handler) {
         throw new Error(`No handler for step ${state.currentStep}`);
       }
 
-      // Execute the handler which returns only nextData
+      // Execute the handler
       const { nextData, nextStep: explicitNextStep } = await handler({ state, payload, dispatch, t });
 
-      // Use the updated nextData to build the flow context
-      const updatedCtx = await buildFlowCtx(nextData);
+      // Determine next step using FlowService
       const flow = state.activeFlow?.steps || [];
       const currIndex = state.activeFlow?.currentIndex ?? 0;
       
       let nextIdx: number | null = null;
       let nextStep: string | null = null;
-      
+
       if (explicitNextStep) {
         // If handler returned an explicit step, find its index
         const explicitIndex = flow.findIndex((s: FlowStep) => s.step === explicitNextStep);
@@ -177,18 +130,22 @@ export function useFlow(
           nextIdx = explicitIndex;
           nextStep = explicitNextStep;
         } else {
-          // Explicit step not in flow, keep it but no index
           nextStep = explicitNextStep;
         }
       } else {
-        // Get the next valid step based on the updated context
-        nextIdx = getNextValidIndex(flow, currIndex, updatedCtx);
-        nextStep = nextIdx !== null ? flow[nextIdx].step : null;
+        // Use FlowService to determine next step
+        const nextStepInfo = await FlowService.determineNextStep(
+          flow,
+          currIndex,
+          nextData,
+          payload
+        );
+        nextIdx = nextStepInfo.nextIndex;
+        nextStep = nextStepInfo.nextStep;
       }
 
       info(`[AuthFlow] Advancing to index: ${nextIdx}`, "Next step:", nextStep, nextData);
 
-      // Dispatch with the determined next step
       dispatch({ 
         type: 'ADVANCE_STEP', 
         payload: { 
@@ -202,11 +159,9 @@ export function useFlow(
       logError("[AuthFlow] Error in advanceFlow:", error);
       dispatch({ type: 'SET_FLOW_ERROR', payload: t('errors.UNKNOWN_ERROR') });
     } finally {
-      // Always set loading to false when the step transition is complete,
-      // regardless of success or failure
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [state, dispatch, buildFlowCtx, t]);
+  }, [state, dispatch, t]);
 
   /**
    * End the current flow and reset flow state
