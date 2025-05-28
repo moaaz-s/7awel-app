@@ -58,7 +58,14 @@ export function isTokenExpired(token: string | null, bufferSeconds = 300): boole
   
   try {
     const payload = decodeToken(token);
-    if (!payload || !payload.exp) return true;
+    if (!payload) {
+      logError('[TokenUtils] Invalid token format in isTokenExpired');
+      return true;
+    }
+    if (!payload.exp) {
+      logError('[TokenUtils] Token missing expiration claim');
+      return true;
+    }
     
     // Get current time in seconds
     const now = Math.floor(Date.now() / 1000);
