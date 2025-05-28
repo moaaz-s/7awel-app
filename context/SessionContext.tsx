@@ -141,9 +141,11 @@ export function SessionProvider({ children }: ProviderProps) {
   const activate = async (pin: string): Promise<boolean> => {
     if (authStatus !== AuthStatus.Authenticated) return false;
     
+    // Validate PIN first
     const isValid = await validatePin(pin);
     if (!isValid) return false;
 
+    // If PIN is valid, create or refresh session
     return await createSession();
   };
 

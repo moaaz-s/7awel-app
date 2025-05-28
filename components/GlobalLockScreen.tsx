@@ -10,7 +10,7 @@ import { SessionStatus } from '@/context/auth/auth-types';
 import { error as logError } from '@/utils/logger';
 
 export default function GlobalLockScreen({ children }: { children: React.ReactNode }) {
-  const { authStatus, validatePin } = useAuth();
+  const { authStatus } = useAuth();
   const { status: sessionStatus, activate } = useSession();
   const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
@@ -35,12 +35,9 @@ export default function GlobalLockScreen({ children }: { children: React.ReactNo
       
       if (pinOrBio === "bio") {
         success = true; // Biometric is already validated
-      } else if (isSessionLocked || isSessionExpired) {
-        // Use session activation for locked/expired sessions
-        success = await activate(pinOrBio);
       } else {
-        // Use PIN validation for locked auth status
-        success = await validatePin(pinOrBio);
+        // Use session activation for all PIN validation
+        success = await activate(pinOrBio);
       }
       
       if (!success) {
