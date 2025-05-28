@@ -4,7 +4,10 @@ const glob = require('glob');
 const path = require('node:path');
 
 // Configuration
-const translationFilePath = path.resolve(__dirname, '../locales/en.ts');
+const localeFiles = {
+  en: path.resolve(__dirname, '../locales/en.ts'),
+  ar: path.resolve(__dirname, '../locales/ar.ts')
+};
 const sourceFilesPattern = [
   'app/**/*.{ts,tsx}',
   'components/**/*.{ts,tsx}',
@@ -45,11 +48,15 @@ function parseTranslationObject(content) {
   }
 }
 
-async function findDefinedKeys() {
-  const content = fs.readFileSync(translationFilePath, 'utf8');
+async function findDefinedKeysForLocale(filePath) {
+  if (!fs.existsSync(filePath)) {
+    console.error(`Translation file not found: ${filePath}`);
+    process.exit(1);
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
   const translationData = parseTranslationObject(content);
   if (!translationData) {
-    console.error(`Could not parse translation file: ${translationFilePath}`);
+    console.error(`Could not parse translation file: ${filePath}`);
     process.exit(1);
   }
   return extractKeys(translationData);
@@ -80,23 +87,53 @@ async function findUsedKeys() {
   return usedKeys;
 }
 
-(async () => {
-  console.log(`Reading defined translation keys from: ${translationFilePath}`);
-  const definedKeys = await findDefinedKeys();
-  console.log(`Found ${definedKeys.size} defined translation keys.`);
+function compareLocales(enKeys, arKeys) {
+  const missingInAr = [...enKeys].filter(key => !arKeys.has(key));
+  const missingInEn = [...arKeys].filter(key => !enKeys.has(key));
+  return { missingInAr, missingInEn };
+}
 
+(async () => {
+  // Find used keys in source code
   console.log('Scanning source for used translation keys...');
   const usedKeys = await findUsedKeys();
   console.log(`Found ${usedKeys.size} used translation keys.`);
 
-  const missing = [...usedKeys].filter(key => !definedKeys.has(key));
-  if (missing.length) {
-    console.log('\n--- Missing Translation Keys ---');
-    missing.forEach(k => console.log(k));
-    console.log('\nPlease add these keys to your locale files.');
+  // Check English translations
+  console.log(`\nReading English translation keys from: ${localeFiles.en}`);
+  const enKeys = await findDefinedKeysForLocale(localeFiles.en);
+  console.log(`Found ${enKeys.size} defined English translation keys.`);
+
+  // Check Arabic translations
+  console.log(`\nReading Arabic translation keys from: ${localeFiles.ar}`);
+  const arKeys = await findDefinedKeysForLocale(localeFiles.ar);
+  console.log(`Found ${arKeys.size} defined Arabic translation keys.`);
+
+  // Check for missing translations in source code
+  const missingInSource = [...usedKeys].filter(key => !enKeys.has(key) && !arKeys.has(key));
+  if (missingInSource.length) {
+    console.log('\n--- Keys Used in Source But Missing in Both Locales ---');
+    missingInSource.forEach(k => console.log(k));
+  }
+
+  // Compare locales
+  const { missingInAr, missingInEn } = compareLocales(enKeys, arKeys);
+  
+  if (missingInAr.length) {
+    console.log('\n--- Keys Missing in Arabic Translations ---');
+    missingInAr.forEach(k => console.log(k));
+  }
+
+  if (missingInEn.length) {
+    console.log('\n--- Keys Missing in English Translations ---');
+    missingInEn.forEach(k => console.log(k));
+  }
+
+  if (missingInSource.length || missingInAr.length || missingInEn.length) {
+    console.log('\nPlease add the missing translation keys to the appropriate locale files.');
     process.exit(1);
   } else {
-    console.log('\nAll used translation keys are defined in locales.');
+    console.log('\nAll translations are in sync! 🎉');
     process.exit(0);
   }
 })();
