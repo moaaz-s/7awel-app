@@ -64,6 +64,8 @@ export function useFlow(
       dispatch({ type: 'CLEAR_ERROR' });
       const flowInit = await FlowService.initiateFlow(flowType, initialData);
       
+      dispatch({ type: 'SET_DEVICE_INFO', payload: flowInit.deviceInfo });
+
       dispatch({
         type: 'START_FLOW',
         payload: {
@@ -73,7 +75,6 @@ export function useFlow(
         }
       });
 
-      dispatch({ type: 'SET_DEVICE_INFO', payload: flowInit.deviceInfo });
       
       info(`[AuthFlow] Started flow: ${flowType}, first step: ${flowInit.initialIndex !== null ? flowInit.steps[flowInit.initialIndex].step : 'null'}`);
     } catch (error: any) {
