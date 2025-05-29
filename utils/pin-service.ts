@@ -40,6 +40,12 @@ export async function setPin(pin: string): Promise<void> {
  * Validate a PIN: verify, track attempts, and lock on max attempts.
  */
 export async function validatePin(pin: string): Promise<ValidatePinResult> {
+  // First check if we're already locked
+  const currentLockUntil = await getPinLockUntil();
+  if (currentLockUntil && currentLockUntil > Date.now()) {
+    return { valid: false, locked: true, lockUntil: currentLockUntil };
+  }
+
   const storedHash = await getPinHash();
   if (!storedHash) {
     return { valid: false };
@@ -104,11 +110,6 @@ export async function clearLockout(): Promise<void> {
  * Returns true if currently locked out.
  */
 export async function isLocked(): Promise<boolean> {
-  const until = await getPinLockUntil();
-  const isLocked = !!until && until > Date.now();
-  if (!isLocked) {
-    await clearLockout();
-  }
-  
-  return isLocked;
+  const lockUntil = await getPinLockUntil();
+  return !!lockUntil && lockUntil > Date.now();
 }
