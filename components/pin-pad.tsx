@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { KeypadButton } from "@/components/ui/keypad-button"
 import { useLanguage } from "@/context/LanguageContext"
 import { FingerprintIcon, BackspaceIcon, ArrowRightIcon } from "@/components/icons"
+import { clearLockout } from '@/utils/pin-service';
+
+
 import { useData } from "@/context/DataContext"
 import { Avatar } from "./ui/avatar"
 import { useSession } from "@/context/SessionContext"
@@ -91,15 +94,17 @@ export function PinPad({
       const diff = lockUntil - Date.now()
       if (diff <= 0) {
         clearInterval(intervalId)
-        setLocked(false)
-        setLockUntil(null)
-        setRemaining(null)
+        clearLockout().then(() => {
+          setLocked(false)
+          setLockUntil(null)
+          setRemaining(null)
+        })
       } else {
         setRemaining(diff)
       }
     }, 1000)
     return () => clearInterval(intervalId)
-  }, [locked, lockUntil])
+  }, [locked, lockUntil, clearLockout])
 
   // Handle key press animation
   const handleKeyPress = (key: string) => {
@@ -113,7 +118,7 @@ export function PinPad({
     handleKeyPress(digit)
     const newPin = [...pin, digit]
     setPin(newPin)
-    
+
     // Check if pin is complete
     if (newPin.length === pinLength) {
       setIsPinComplete(true)
@@ -181,23 +186,23 @@ export function PinPad({
     const handleKeyDown = (e: KeyboardEvent) => {
       // If loading or locked, do nothing
       if (isLoading || locked) return
-      
+
       // Handle number keys
       if (/^[0-9]$/.test(e.key)) {
         handleDigitClick(e.key)
       }
-      
+
       // Handle backspace/delete
       if (e.key === 'Backspace' || e.key === 'Delete') {
         handleDelete()
       }
-      
+
       // Handle Enter key for submission when PIN is complete
       if (e.key === 'Enter' && isPinComplete) {
         handleSubmit(pin.join(''))
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [pin, isPinComplete, isLoading, locked])
@@ -222,10 +227,10 @@ export function PinPad({
     const dots = Array.from({ length: pinLength }).map((_, i) => {
       const filled = i < pin.length
       return (
-        <div 
-          key={i} 
-          className={`h-4 w-4 rounded-full transition-all duration-300 ${filled 
-            ? "bg-primary scale-110" 
+        <div
+          key={i}
+          className={`h-4 w-4 rounded-full transition-all duration-300 ${filled
+            ? "bg-primary scale-110"
             : "bg-input"}`}
           aria-hidden="true"
         />
@@ -239,9 +244,9 @@ export function PinPad({
     <div className="flex-1 flex flex-col items-center justify-between w-full max-w-md mx-auto min-h-[50vh]" dir="ltr">
       {welcome_message && user && (
         <div className="flex flex-col items-center space-y-4 mt-8 p-8 w-full" dir={isRTL ? "rtl" : "ltr"}>
-          <Avatar 
-            size="lg" 
-            border 
+          <Avatar
+            size="lg"
+            border
             initials={`${user.firstName?.charAt(0).toUpperCase() || ''}${user.lastName?.charAt(0).toUpperCase() || ''}`}
           />
           <div className="text-center">
@@ -252,7 +257,7 @@ export function PinPad({
           </div>
         </div>
       )}
-      
+
       {locked && (
         <p className="text-center text-sm text-destructive mb-6" aria-live="assertive">
           {t('pinPad.lockedUntil', { time: formatRemaining(remaining ?? 0) })}
@@ -264,8 +269,8 @@ export function PinPad({
           <div className={`flex justify-center gap-5 py-12 ${shake ? 'animate-pin-bins-shake' : ''}`} aria-live="polite" aria-atomic="true">
             {renderPinDots()}
             <span className="sr-only">
-              {pin.length > 0 
-                ? t('pinPad.digitsEntered', { count: pin.length.toString(), total: pinLength.toString() }) 
+              {pin.length > 0
+                ? t('pinPad.digitsEntered', { count: pin.length.toString(), total: pinLength.toString() })
                 : t('pinPad.enterDigits', { count: pinLength.toString() })}
             </span>
           </div>
@@ -283,7 +288,7 @@ export function PinPad({
                 />
               </div>
             ))}
-            
+
             {/* Back button or biometric (only shows one at a time) */}
             <div className="flex items-center justify-center">
               {pin.length > 0 ? (
@@ -308,7 +313,7 @@ export function PinPad({
                 <div className="w-16 h-16"></div> // Empty placeholder
               )}
             </div>
-            
+
             <div className="flex items-center justify-center">
               <KeypadButton
                 type="button"
@@ -320,7 +325,7 @@ export function PinPad({
                 icon={<span>0</span>}
               />
             </div>
-            
+
             {/* Submit button (only shows when pin is complete) */}
             <div className="flex items-center justify-center">
               {isPinComplete ? (
@@ -342,7 +347,7 @@ export function PinPad({
 
           {/* Forgot PIN Button - Show only if enabled and biometric didn't handle it */}
           {showForgotPin && onForgotPin && (
-            <Button 
+            <Button
               variant="link"
               className="mt-6 text-sm mx-auto block text-primary font-medium"
               onClick={onForgotPin}
