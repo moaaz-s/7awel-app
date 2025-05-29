@@ -110,6 +110,10 @@ export function useFlow(
       
       const stepKey = state.currentStep;
       const handler = STEP_HANDLERS[stepKey as keyof typeof STEP_HANDLERS];
+
+      info("[AuthFlow] Steps:", state.activeFlow?.steps);
+      info("[AuthFlow] Current step:", stepKey, payload);
+      info("[AuthFlow] Handler:", handler);
       
       if (!handler) {
         throw new Error(`No handler for step ${state.currentStep}`);
