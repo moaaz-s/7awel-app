@@ -30,19 +30,7 @@ export default function GlobalLockScreen({ children }: { children: React.ReactNo
     setIsLoading(true);
     
     try {
-      // When using biometric shortcut, pinOrBio==="bio"
-      let success = false;
-      
-      if (pinOrBio === "bio") {
-        success = true; // Biometric is already validated
-      } else {
-        // Use session activation for all PIN validation
-        success = await activate(pinOrBio);
-      }
-      
-      if (!success) {
-        setError(t("errors.PIN_INVALID"));
-      }
+      await activate(pinOrBio);
     } catch (err) {
       logError(err);
       setError(t("errors.PIN_UNEXPECTED_ISSUE"));

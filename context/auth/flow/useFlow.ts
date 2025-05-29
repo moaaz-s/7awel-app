@@ -61,6 +61,7 @@ export function useFlow(
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
+      dispatch({ type: 'CLEAR_ERROR' });
       const flowInit = await FlowService.initiateFlow(flowType, initialData);
       
       dispatch({
