@@ -10,7 +10,7 @@ import {
   SignOutIcon,
   UserIcon,
 } from "@/components/icons"
-import { useData } from "@/context/DataContext";
+import { useData } from "@/context/DataContext-v2";
 import { spacing } from "@/components/ui-config"
 import { PageContainer } from "@/components/layouts/page-container"
 import { Avatar } from "@/components/ui/avatar"
@@ -95,7 +95,7 @@ export default function ProfilePage() {
   ]
 
   return (
-    <PageContainer title={""} backHref="/home">
+    <PageContainer title={""} backHref="/home" backIconStyle="cross">
       <div className="flex-1 flex flex-col justify-between lpb-16">
         <div className="p-4 -mx-4 flex flex-col items-center text-center">
           {user && (

@@ -17,7 +17,6 @@ import {
   AUTH_STEP_TOKEN_ACQUISITION
 } from '@/context/auth/flow/flowSteps';
 import { AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
-import { OtpChannel } from '@/services/api-service';
 import { 
   AlertTriangle, 
   Loader2 
@@ -36,8 +35,9 @@ import { ActionPopup } from '../shared/ActionPopup';
 import PinSetup from './PinSetup';
 import ProfileStep from './ProfileStep';
 import { PinPad } from '../pin-pad';
-import { PIN_LOCKOUT_TIME_MS } from '@/constants/auth-constants';
 import { info } from '@/utils/logger';
+import { setPinForgotten } from '@/utils/pin-service';
+import { OTP_CHANNEL } from '@/context/auth/auth-types';
 
 interface AuthFlowManagerProps {
   flowType: AuthFlowType;
@@ -60,18 +60,13 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     const router = useRouter();
     const { 
       currentStep, 
-      stepData, 
+      flowState, 
       error, 
       isLoading, 
       advanceFlow, 
-      initiateFlow, 
-      resendPhoneOtp, 
-      resendEmailOtp,
-      forgotPin,
-      resetAttempts,
-      activeFlow,
-      isTokenReady
+      initiateFlow
     } = useAuth(); 
+
     const { toast } = useToast();
 
     // Initialize the flow based on flowType - using a more robust approach with useRef
@@ -79,19 +74,19 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     
     useEffect(() => {
       if (!flowInitialized.current[flowType]) {
-        console.log(`[AuthFlowManager] First time initializing flow: ${flowType}`);
+        info(`[AuthFlowManager] First time initializing flow: ${flowType}`);
         flowInitialized.current[flowType] = true;
-        const initialData = isTokenReady ? { tokenValid: true } : undefined;
-        initiateFlow(flowType, initialData);
+        // initiateFlowOrchestration will compute tokenValid via buildFlowState
+        initiateFlow(flowType);
       }
-    }, [flowType, initiateFlow, isTokenReady]);
+    }, [flowType, initiateFlow]);
 
     // Separate effect for debugging that won't contribute to render cycles
     useEffect(() => {
       if (currentStep) {
-        info("[AuthFlowManager] Current Step:", currentStep, "Data:", stepData, "Error:", error);
+        info("[AuthFlowManager] Current Step:", currentStep, "Data:", flowState, "Error:", error);
       }
-    }, [currentStep, stepData, error]);
+    }, [currentStep, flowState, error]);
 
     // Guard auto-advance in token acquisition step so it runs only once per entry
     const hasAutoAdvancedRef = useRef(false);
@@ -104,7 +99,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
       if (currentStep !== AUTH_STEP_TOKEN_ACQUISITION) {
         hasAutoAdvancedRef.current = false;
       }
-    }, [currentStep, error]);
+    }, [advanceFlow, currentStep, error]);
 
     // Move onComplete out of render: trigger after authenticated via effect
     useEffect(() => {
@@ -224,7 +219,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
                          
     const canGoBack = !isFirstStep && (
       (currentStep === AUTH_STEP_PHONE_OTP_PENDING) || 
-      (currentStep === AUTH_STEP_EMAIL_OTP_PENDING && stepData.email)
+      (currentStep === AUTH_STEP_EMAIL_OTP_PENDING && flowState.email)
     );
     
     // Function to handle back button press
@@ -237,15 +232,13 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
         const { dismiss } = toast({
           variant: "destructive",
           title: t('auth.confirmBackOtpTitle: Back to Phone Entry'),
-          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong phone ${stepData.phoneNumber}? '),
+          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong phone ${flowState.phoneNumber}? '),
           action: (
             <ToastAction asChild altText={t('common.confirm')}>
               <Button size="default" variant="destructive-gradient" destructive={true} fullWidth onClick={() => {
                 initiateFlow(flowType, {
-                  countryCode: stepData.countryCode,
-                  phoneNumber: stepData.phoneNumber,
-                  phoneValidated: false,
-                  otpExpires: undefined
+                  countryCode: flowState.countryCode,
+                  phoneNumber: flowState.phoneNumber
                 });
                 dismiss();
               }}>
@@ -260,16 +253,16 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
         const { dismiss } = toast({
           variant: "destructive",
           title: t('auth.confirmBackOtpTitle: Back to Email Entry'),
-          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong email ${stepData.email}? '),
+          description: t('auth.confirmBackOtpDescription: Are you sure you entered the wrong email ${flowState.email}? '),
           action: (
             <ToastAction asChild altText={t('common.confirm')}>
               <Button size="default" variant="destructive-gradient" destructive={true} fullWidth onClick={() => {
                 initiateFlow(flowType, {
-                  countryCode: stepData.countryCode,
-                  phoneNumber: stepData.phoneNumber,
+                  countryCode: flowState.countryCode,
+                  phoneNumber: flowState.phoneNumber,
                   phoneValidated: true,
-                  otpExpires: Date.now() - 1,
-                  email: stepData.email,
+                  phoneOtpExpires: Date.now() - 1,
+                  email: flowState.email,
                   emailVerified: false,
                   emailOtpExpires: Date.now() - 1
                 });
@@ -287,11 +280,11 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     // since these are now handled by the parent AuthLayout
     const renderStepContent = () => {
       switch (currentStep) {
-        case AUTH_STEP_PHONE_ENTRY:
+        case AUTH_STEP_PHONE_ENTRY: {
           return (
             <PhoneInput
-              defaultCountryCode={stepData.countryCode ?? '+1'}
-              defaultPhoneNumber={stepData.phoneNumber ?? ''}
+              defaultCountryCode={flowState.countryCode ?? '1'}
+              defaultPhoneNumber={flowState.phoneNumber ?? ''}
               onSubmit={(countryCode, phoneNumber, channel) =>
                 advanceFlow({ countryCode, phoneNumber, channel })
               }
@@ -299,20 +292,25 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               isLoading={isLoading}
             />
           );
-        case AUTH_STEP_PHONE_OTP_PENDING:
-          const fullPhoneNumber = `${stepData.countryCode || ''}${stepData.phoneNumber || ''}`;
+        }
+        case AUTH_STEP_PHONE_OTP_PENDING: {
+          const fullPhoneNumber = `${flowState.countryCode || ''}${flowState.phoneNumber || ''}`;
           return (
             <OtpVerification
               onVerify={(otp) => advanceFlow({ otp })}
-              onResend={resendPhoneOtp}
+              onResend={() => initiateFlow(flowType, {
+                ...flowState,
+                phoneOtpExpires: Date.now() - 1
+              })}
               error={error || undefined}
               isLoading={isLoading}
-              channelLabel={stepData.channel === OtpChannel.WHATSAPP ? 
+              channelLabel={flowState.channel === OTP_CHANNEL.WHATSAPP ? 
                 `${t('auth.whatsapp')} ${fullPhoneNumber}` : `${t('auth.telegram')} ${fullPhoneNumber}`}
-              expiryTs={stepData.otpExpires}
+              expiryTs={flowState.phoneOtpExpires}
             />
           );
-        case AUTH_STEP_EMAIL_ENTRY_PENDING:
+        }
+        case AUTH_STEP_EMAIL_ENTRY_PENDING: {
           return (
             <EmailInput
               onSubmit={(email) => advanceFlow({ email })}
@@ -320,27 +318,23 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               isLoading={isLoading}
             />
           );
-        case AUTH_STEP_EMAIL_OTP_PENDING:
+        }
+        case AUTH_STEP_EMAIL_OTP_PENDING: {
           return (
             <OtpVerification
-                channelLabel={stepData.email || ''} // User's email
+                channelLabel={flowState.email || ''} // User's email
                 onVerify={(otp) => advanceFlow({ emailCode: otp })}
-                onResend={async () => {
-                  if (stepData.email && resendEmailOtp) {
-                    try {
-                      await resendEmailOtp();
-                    } catch (err) {
-                      // Error is typically handled and displayed by useAuth/AuthContext
-                      console.error("[AuthFlowManager] Failed to resend email OTP:", err);
-                    }
-                  }
-                }}
-                expiryTs={stepData.emailOtpExpires} // OTP expiry time
+                onResend={() => initiateFlow(flowType, {
+                  ...flowState,
+                  emailOtpExpires: Date.now() - 1
+                })}
+                expiryTs={flowState.emailOtpExpires} // OTP expiry time
                 isLoading={isLoading}
                 error={error} // Pass down error for display
               />
           );
-        case AUTH_STEP_USER_PROFILE_PENDING:
+        }
+        case AUTH_STEP_USER_PROFILE_PENDING: {
           return (
             <ProfileStep
               onSubmit={({ firstName, lastName, address }) =>
@@ -350,28 +344,34 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               isLoading={isLoading}
             />
           );
-        case AUTH_STEP_PIN_SETUP_PENDING:
+        }
+        case AUTH_STEP_PIN_SETUP_PENDING: {
           return (
             <PinSetup
-              onSubmit={(pin: string) => advanceFlow({ pin })}
+              onSubmit={() => advanceFlow({})}
               isLoading={isLoading}
               // error={error || undefined}
             />
           );
-        case AUTH_STEP_PIN_ENTRY_PENDING:
+        }
+        case AUTH_STEP_PIN_ENTRY_PENDING: {
           return (
             <PinPad
               welcome_message={t("pinPad.loggedOutWelcomeMessage")}
-              onValidPin={(pin) => advanceFlow({ pin })}
-              onForgotPin={forgotPin}
-              showForgotPin={true}
+              onValidPin={() => advanceFlow({})}
+
               showBiometric={true}
+
+              onAction={setPinForgotten}
+              showAction={true}
+              actionLabel={t("pinPad.forgotPinLink")}
+
               isLoading={isLoading}
               error={error}
             />
           );
-
-        case AUTH_STEP_TOKEN_ACQUISITION:
+        }
+        case AUTH_STEP_TOKEN_ACQUISITION: {
           return (
             <div className="flex flex-col flex-1 items-center justify-center p-6">
               {error && <p className="text-red-500 mb-4">{error}</p>}
@@ -380,13 +380,14 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               </Button>
             </div>
           );
-        case AUTH_STEP_AUTHENTICATED:
+        }
+        case AUTH_STEP_AUTHENTICATED: {
           return (
             <div className="flex flex-col flex-1 items-center justify-center p-6">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           );
-
+        }
         default:
           return (
             <ActionPopup

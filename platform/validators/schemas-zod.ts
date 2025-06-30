@@ -26,8 +26,8 @@ export const userProfileSchema = z.object({
   address: z.string()
     .max(200, 'errors.VALIDATION_ADDRESS_TOO_LONG')
     .optional(),
-  dateOfBirth: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'errors.VALIDATION_DATE_FORMAT')
+  dob: z.string()
+    .regex(/^[\d]{4}-[\d]{2}-[\d]{2}$/, 'errors.VALIDATION_DATE_FORMAT')
     .optional(),
   gender: z.enum(['male', 'female', 'other'])
     .optional(),
@@ -38,6 +38,7 @@ export const userProfileSchema = z.object({
 /**
  * Contact Schema
  */
+// Core Contact (shared between API and UI)
 export const contactSchema = z.object({
   id: z.string()
     .min(1, 'errors.VALIDATION_ID_REQUIRED'),
@@ -58,6 +59,7 @@ export const contactSchema = z.object({
     .positive('errors.VALIDATION_TIMESTAMP_INVALID')
     .optional(),
   isFavorite: z.boolean(),
+  initial: z.string().length(1),
   syncedAt: z.number()
     .positive('errors.VALIDATION_TIMESTAMP_INVALID'),
   hasAccount: z.boolean()
@@ -73,8 +75,7 @@ export const transactionSchema = z.object({
   type: z.string(),
   amount: z.number()
     .positive('errors.VALIDATION_AMOUNT_INVALID'),
-  currency: z.string()
-    .length(3, 'errors.VALIDATION_CURRENCY_INVALID'),
+  assetSymbol: z.string().length(3),
   status: z.string(),
   createdAt: z.string()
     .datetime('errors.VALIDATION_DATETIME_INVALID'),
@@ -98,6 +99,39 @@ export const transactionSchema = z.object({
 /**
  * Sync Metadata Schema
  */
+
+/**
+ * Local Balance schema (asset balance plus metadata)
+ */
+/*
+ * Promotion Schema
+ */
+export const promotionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  imageUrl: z.string().url().optional(),
+  linkUrl: z.string().url(),
+  backgroundColor: z.string().optional(),
+});
+
+/*
+ * Log Event Schema
+ */
+export const logEventSchema = z.object({
+  eventType: z.string().min(1),
+  payload: z.unknown(),
+  timestamp: z.number().positive(),
+});
+
+export const balanceSchema = z.object({
+  id: z.string().min(1),
+  symbol: z.string().min(1),
+  amount: z.number(),
+  fiatValue: z.number().optional(),
+  lastUpdated: z.number().positive(),
+});
+
 export const syncMetadataSchema = z.object({
   id: z.string()
     .min(1, 'errors.VALIDATION_ID_REQUIRED'),
@@ -110,6 +144,9 @@ export const syncMetadataSchema = z.object({
 export type UserProfile = z.infer<typeof userProfileSchema>;
 export type Contact = z.infer<typeof contactSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
+export type AssetBalance = z.infer<typeof balanceSchema>;
+export type Promotion = z.infer<typeof promotionSchema>;
+export type LogEvent = z.infer<typeof logEventSchema>;
 export type SyncMetadata = z.infer<typeof syncMetadataSchema>;
 
 /**

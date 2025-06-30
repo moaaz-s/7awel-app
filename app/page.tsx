@@ -4,53 +4,6 @@
 import { useLanguage } from "@/context/LanguageContext"
 import { ClientLanguageWrapper } from "@/components/client-language-wrapper"
 import { ReelsContainer, type ReelSlide } from "@/components/ui/reels-container"
-import Image from "next/image"
-import { motion } from "framer-motion"
-
-// Animated Crypto Coins component for visual appeal
-function AnimatedCoins() {
-  return (
-    <div className="relative w-full h-full">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <motion.div
-          key={i}
-          className="absolute"
-          initial={{ 
-            x: Math.random() * 300 - 150, 
-            y: Math.random() * 300 - 150,
-            rotate: Math.random() * 180 - 90,
-            opacity: 0.5
-          }}
-          animate={{
-            x: Math.random() * 300 - 150,
-            y: Math.random() * 300 - 150,
-            rotate: [null, Math.random() * 180 - 90],
-            opacity: [0.5, 0.8, 0.5]
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            repeatType: "reverse",
-            ease: "easeInOut",
-            delay: i * 0.5
-          }}
-          style={{
-            width: 80 + Math.random() * 80,
-            height: 80 + Math.random() * 80,
-          }}
-        >
-          <Image
-            src={`/coins/coin-${i % 3 + 1}.png`}
-            alt="Crypto coin"
-            width={120}
-            height={120}
-            className="w-full h-full object-contain opacity-70 drop-shadow-lg"
-          />
-        </motion.div>
-      ))}
-    </div>
-  )
-}
 
 // Define the splash page slides for the reels
 const splashSlides: ReelSlide[] = [

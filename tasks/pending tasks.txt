@@ -1,3 +1,34 @@
+------------------
+COMPLETED TASK: AuthFlowState Migration - Phase 1, 2, 3, and 4
+Date: 2025-05-30
+
+Summary:
+Successfully completed the four phases of unifying StepData and FlowCtx into AuthFlowState:
+
+Phase 1 - Updated Step Handlers 
+- Updated StepResult interface to return Partial<AuthFlowState>
+- Verified all step handlers are compatible
+
+Phase 2 - Component Migration  
+- Updated AuthFlowManager to use flowState for OTP expiry fields
+- Kept user input fields in stepData as planned
+
+Phase 3 - Action Updates 
+- Created SET_FLOW_STATE action type and handler
+- Migrated PIN manager to use SET_FLOW_STATE for pinSet
+- Migrated OTP resend functions to use SET_FLOW_STATE for expiry times
+
+Phase 4 - Complete Migration 
+- Updated initiateFlow to accept Partial<AuthFlowState>
+- Removed stepData from AuthState interface and initial state
+- Updated all components (AuthFlowManager, AuthContext) to use flowState
+- Removed SET_STEP_DATA action handler
+- Fixed all import paths and type references
+
+Status: Ready for further development
+The application is stable with the unified AuthFlowState approach.
+
+------------------
 Use case: 
 A forgotten pin reinitialization flow may be flowed.
 
@@ -81,11 +112,6 @@ Log register & login actions (normal, failed and different attempts)
 Log as much info as possible in the auth flow and in the actions taken within the app.
 
 ------------------
-Phase 4: Capacitor & Cross-Platform Compatibility
-[ ] 4.1 Test secure storage implementation across web and native environments
-[ ] 4.2 Create platform-specific secure storage providers if needed
-[ ] 4.3 Implement SQL-type local database for persistent data
-[ ] 4.4 Update token handling to work with Capacitor's secure storage
 Phase 5: Testing & Integration with Auth Context
 [ ] 5.1 Update AuthContext to work with new token acquisition flow
 [ ] 5.2 Ensure proper AuthStatus state transitions during token acquisition
@@ -162,7 +188,22 @@ TESTS:
 
 
 
+------------------------
+- authState exporting setPin may need to be removed and refactored. (occrance in @PinChange)
+  In @PinSetup we're using setPin from pin-service
 
 
+  It may also be removed from auth-types.ts & usePinManager.
 
+- Same goes for checkPin, validatePin, forgotPin & resetAttempts from the AuthContext
 
+- As for resentPhoneOtp & resendEmailOtp, they are not used in the auth context, but in the auth flow manager.
+  They could be migrated to the handlers and added as sub actions (to be verified)
+
+- Handlers could be simplified much more to the bare min of transmitting state changes only (to be verified).
+
+- Replace all console.log (.warn & .error) with info, warn, error as logError
+
+- Storage file contains a lot of checks on windows (which could not work on Capacitor)
+
+- can we get rid of resend phone otp & resend email otp from the auth context? I'm thinking to re-execute the flow step again which will trigger a resend anyway, right?

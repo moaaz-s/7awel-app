@@ -99,7 +99,8 @@ export class ContactHelpers {
           phoneHash,
           isFavorite: false,
           syncedAt: Date.now(),
-          hasAccount
+          hasAccount,
+          initial: contact.name.charAt(0).toUpperCase()
         };
         
         // Validate contact data

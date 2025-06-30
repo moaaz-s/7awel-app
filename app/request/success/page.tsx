@@ -5,14 +5,16 @@ import { SuccessLayout } from "@/components/layouts/SuccessLayout"
 import { spacing } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
 import { CheckCircleIcon } from "@/components/icons/ui-icons"
+import { getDisplayProps } from "@/utils/transaction-view-ui"
 import { ContentCard } from "@/components/ui/cards/content-card"
 import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
 import { transactionService } from "@/services/transaction-service"
 
 interface RequestDetails {
+  /** ISO timestamp of when the request was created */
+  createdAt: string
   amount: string
   recipient: string
-  date: string
   reference: string
 }
 
@@ -35,26 +37,44 @@ export default function RequestSuccessPage() {
 
   return (
     <SuccessLayout
-      title={t("Rrequest.sent!")}
+      title={t("Request.sent!")}
       description={t("request.sentDescription")}
       primaryActionText={t("common.backHome")}
       primaryActionHref="/home"
       shareTitle="Payment Request"
       shareText={shareText}
-      icon={<CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto" />}
+      icon={(() => {
+           const tx = { amount: parseFloat(details?.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details?.createdAt ?? new Date().toISOString() } as any;
+           const { colour, icon } = getDisplayProps(tx);
+           return (
+             <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${colour.bg}`}>
+               {icon}
+             </span>
+           );
+        })()}
     >
       <ContentCard elevated={true} padding="sm">
         <div className={spacing.stack}>
           <ContentCardRowItem label={t("transaction.amount")}>
-            ${details?.amount}
+            {(() => {
+              if(!details) return null;
+              const tx = { amount: parseFloat(details.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details.createdAt } as any;
+              const { amountStr } = getDisplayProps(tx);
+              return amountStr;
+            })() }
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.recipient")}>
             {details?.recipient}
           </ContentCardRowItem>
           
-          <ContentCardRowItem label={t("transaction.date")}>
-            {details?.date}
+          <ContentCardRowItem label={t("transaction.createdAt")}>
+            {(() => {
+              if(!details) return null;
+              const tx = { createdAt: details.createdAt, amount: 0, assetSymbol:"USD", type:"transfer" } as any;
+              const { dateStr } = getDisplayProps(tx);
+              return dateStr;
+            })()}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.reference")}>

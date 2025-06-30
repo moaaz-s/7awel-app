@@ -1,14 +1,10 @@
 // services/log-service.ts
-import { httpClient } from "@/services/http-client";
-import { handleError, respondOk } from "@/utils/api-utils";
+import { privateHttpClient } from "@/services/httpClients/private";
+import { handleError, respondOk, isApiSuccess } from "@/utils/api-utils";
 import { error as logError, info } from "@/utils/logger";
 import type { ApiResponse } from "@/types";
-
-interface LogEvent {
-  eventType: string;
-  payload: any;
-  timestamp: number;
-}
+import { ErrorCode } from "@/types/errors";
+import { LogEvent } from "@/platform/data-layer/types";
 
 class LogService {
   private queue: LogEvent[] = [];
@@ -39,15 +35,23 @@ class LogService {
 
     const eventsToSend = [...this.queue];
     try {
-      const response = await httpClient.post<void>("/logs/batch", eventsToSend);
-      this.queue = [];
-      return respondOk(response);
+      const response = await privateHttpClient.logEvents(eventsToSend);
+      if (isApiSuccess(response)) {
+        this.queue = [];
+        return response;
+      }
+      // If batch failed, try individual
+      throw new Error(response.error || "Batch logging failed");
     } catch (batchErr) {
       logError("[logService] Batch flush failed, retrying individually", batchErr);
       let allSucceeded = true;
       for (const evt of eventsToSend) {
         try {
-          await httpClient.post<void>("/logs", evt);
+          const response = await privateHttpClient.logEvent(evt);
+          if (!isApiSuccess(response)) {
+            allSucceeded = false;
+            logError(`[logService] Failed to log event ${evt.eventType}`, response.error);
+          }
         } catch (e) {
           allSucceeded = false;
           logError(`[logService] Failed to log event ${evt.eventType}`, e);
@@ -57,7 +61,7 @@ class LogService {
         this.queue = [];
         return respondOk(undefined);
       }
-      return handleError("Failed to flush logs", batchErr);
+      return handleError("Failed to flush logs", ErrorCode.UNKNOWN);
     }
   }
 }

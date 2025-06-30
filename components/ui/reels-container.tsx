@@ -367,7 +367,7 @@ export function ReelsContainer({
       {/* Footer with buttons */}
       <footer className="relative z-10 p-6 space-y-4">
         {showLoginButtons ? (
-          <div className="flex justify-center justify-between gap-3 mt-4">
+          <div className="flex justify-between gap-3 mt-4">
             <Button fullWidth href="/sign-in" variant="white">
               {t("splash.login")}
             </Button>

@@ -1,11 +1,16 @@
 // User Repository
 
 import { BaseRepository } from './base-repository';
-import { LocalDatabase } from '../../local-db/local-db-types';
-import { StorageManager } from '../../../services/storage-manager';
+import { LocalDatabase } from "@/platform/local-db/local-db-types";
+import { mergeDefined } from "@/utils/merge-helpers";
+import { userProfileSchema } from "@/platform/validators/schemas-zod";
+import { StorageManagerV2 as StorageManager } from '../../../platform/storage/storage-manager-v2';
 import { ProfileHelpers } from '../../local-db/local-db-common';
 import { userService } from '@/services/user-service';
 import { ApiResponse } from '@/types';
+import { error as logError, info } from '@/utils/logger';
+import { USER_REPOSITORY_TTL_MS } from '@/constants/db';
+import { isApiSuccess } from '@/utils/api-utils';
 
 export class UserRepository extends BaseRepository<'userProfile'> {
   constructor(storageManager: StorageManager) {
@@ -15,7 +20,7 @@ export class UserRepository extends BaseRepository<'userProfile'> {
         resolver: (local, remote) => ({
           ...remote,
           // Preserve local preferences that shouldn't be overwritten
-          lastUpdated: Math.max(local.lastUpdated, remote.lastUpdated)
+          lastUpdated: Math.max(local.lastUpdated ?? 0, remote.lastUpdated ?? 0)
         })
       }
     });
@@ -34,7 +39,7 @@ export class UserRepository extends BaseRepository<'userProfile'> {
       
       if (shouldRefresh) {
         // Fetch in background, don't block
-        this.refreshFromRemote().catch(console.error);
+        this.refreshFromRemote().catch(logError);
       }
       
       return localProfile;
@@ -45,6 +50,13 @@ export class UserRepository extends BaseRepository<'userProfile'> {
   }
   
   /**
+   * Get user profile strictly from local storage (no remote calls)
+   */
+  async getLocalProfile(): Promise<LocalDatabase['userProfile'] | undefined> {
+    return ProfileHelpers.getUserProfile(this.storageManager.local);
+  }
+
+  /**
    * Save user profile with atomic transaction
    */
   async saveProfile(profile: Partial<LocalDatabase['userProfile']>): Promise<LocalDatabase['userProfile']> {
@@ -52,20 +64,18 @@ export class UserRepository extends BaseRepository<'userProfile'> {
       // Get current profile within transaction
       const currentProfile = await tx.get('userProfile', 'user');
       
-      // Merge profiles
-      const mergedProfile: LocalDatabase['userProfile'] = {
-        id: currentProfile?.id || 'user',
-        firstName: profile.firstName || currentProfile?.firstName || '',
-        lastName: profile.lastName || currentProfile?.lastName || '',
-        email: profile.email || currentProfile?.email || '',
-        phone: profile.phone || currentProfile?.phone || '',
-        avatar: profile.avatar || currentProfile?.avatar,
-        country: profile.country || currentProfile?.country,
-        address: profile.address || currentProfile?.address,
-        dateOfBirth: profile.dateOfBirth || currentProfile?.dateOfBirth,
-        gender: profile.gender || currentProfile?.gender,
-        lastUpdated: Date.now()
-      };
+      // Guard: prevent overwriting if profile already complete
+      if (currentProfile && currentProfile.firstName && currentProfile.lastName && currentProfile.address) {
+        throw new Error("Profile already completed – updates are disabled.");
+      }
+
+      // Merge + validate via schema
+      const mergedProfile = userProfileSchema.parse(
+        mergeDefined<LocalDatabase['userProfile']>(currentProfile ?? { id: 'user' } as any, {
+          ...profile,
+          lastUpdated: Date.now(),
+        })
+      );
       
       // Save within transaction
       await tx.set('userProfile', mergedProfile);
@@ -89,7 +99,7 @@ export class UserRepository extends BaseRepository<'userProfile'> {
    */
   async syncToRemote(profile: LocalDatabase['userProfile']): Promise<void> {
     try {
-      const response = await userService.updateProfile({
+      const response = await userService.updateUser({
         firstName: profile.firstName,
         lastName: profile.lastName,
         email: profile.email,
@@ -97,11 +107,11 @@ export class UserRepository extends BaseRepository<'userProfile'> {
         avatar: profile.avatar,
         country: profile.country,
         address: profile.address,
-        dateOfBirth: profile.dateOfBirth,
+        dob: profile.dob,
         gender: profile.gender
       });
       
-      if (!response.success) {
+      if (response.error) {
         throw new Error(response.error || 'Failed to sync profile');
       }
     } catch (error) {
@@ -113,9 +123,9 @@ export class UserRepository extends BaseRepository<'userProfile'> {
   /**
    * Check if we should refresh from remote
    */
-  private async shouldRefreshFromRemote(lastUpdated: number): Promise<boolean> {
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-    return Date.now() - lastUpdated > CACHE_DURATION;
+  private async shouldRefreshFromRemote(lastUpdated?: number): Promise<boolean> {
+    if (!lastUpdated) return true;
+    return Date.now() - lastUpdated > USER_REPOSITORY_TTL_MS;
   }
   
   /**
@@ -123,32 +133,31 @@ export class UserRepository extends BaseRepository<'userProfile'> {
    */
   private async refreshFromRemote(): Promise<LocalDatabase['userProfile'] | undefined> {
     try {
-      const response = await userService.getProfile();
+      const response = await userService.getUser();
+      console.log('[UserRepository] API Response:', response);
+
+      if (!isApiSuccess(response)) {
+        throw new Error(response.error || 'Unknown error');
+      }
       
-      if (response.success && response.data) {
-        const profile: LocalDatabase['userProfile'] = {
+      if (response.data) {
+        const userData = response.data.user;
+        const profile = userProfileSchema.parse({
+          ...userData,
           id: 'user',
-          firstName: response.data.firstName || '',
-          lastName: response.data.lastName || '',
-          email: response.data.email || '',
-          phone: response.data.phone || '',
-          avatar: response.data.avatar,
-          country: response.data.country,
-          address: response.data.address,
-          dateOfBirth: response.data.dateOfBirth,
-          gender: response.data.gender,
-          lastUpdated: Date.now()
-        };
+          lastUpdated: Date.now(),
+        });
         
-        // Save to local
-        await ProfileHelpers.saveProfile(this.storageManager.local, profile);
+        // Save to local storage
+        await this.storageManager.local.set('userProfile', profile);
         
         return profile;
       }
       
       return undefined;
     } catch (error) {
-      console.error('Failed to refresh profile from remote:', error);
+      logError('Failed to refresh profile from remote:', error);
+      console.error('[UserRepository] Error details:', error);
       return undefined;
     }
   }

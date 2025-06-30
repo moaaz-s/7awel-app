@@ -1,49 +1,43 @@
 // platform/local-db-types.ts
 // Common types and interfaces for local database implementations
 
+import { Transaction, User, Contact, AssetBalance } from '@/types';
+
+// Extend core DTOs with optional local-only metadata
+export interface LocalTransaction extends Transaction {
+  /** Timestamp when the record was last synced */
+  syncedAt?: number;
+  /** Mark record as not yet pushed to backend */
+  localOnly?: boolean;
+
+
+}
+
+export interface LocalUser extends User {
+  /** Timestamp when profile was updated in local DB */
+  lastUpdated?: number;
+}
+
+export interface LocalContact extends Contact {
+  phoneHash?: string;
+  isFavorite?: boolean;
+  syncedAt?: number;
+  hasAccount?: boolean;
+  lastInteraction?: number;
+  avatar?: string;
+}
+
+export interface LocalBalance extends AssetBalance {
+  id: string;
+  lastUpdated: number;
+}
+
 export interface LocalDatabase {
-  userProfile: {
-    id: string
-    firstName: string
-    lastName: string
-    email: string
-    phone: string
-    avatar?: string
-    country?: string
-    address?: string
-    dateOfBirth?: string  // ISO 8601 format: YYYY-MM-DD
-    gender?: 'male' | 'female' | 'other'
-    lastUpdated: number
-  }
+  userProfile: LocalUser;
   
-  contacts: {
-    id: string
-    name: string
-    phone: string
-    phoneHash: string
-    email?: string
-    avatar?: string
-    lastInteraction?: number
-    isFavorite: boolean
-    syncedAt: number
-    hasAccount?: boolean
-  }
+  contacts: LocalContact;
   
-  recentTransactions: {
-    id: string
-    type: string
-    amount: number
-    currency: string
-    status: string
-    createdAt: string  // ISO 8601 format
-    recipientId?: string
-    senderId?: string
-    recipientName?: string
-    senderName?: string
-    note?: string
-    localOnly?: boolean
-    syncedAt: number  // timestamp
-  }
+  recentTransactions: LocalTransaction;
   
   syncMetadata: {
     id: string;
@@ -51,14 +45,7 @@ export interface LocalDatabase {
     status: 'syncing' | 'synced' | 'error';
   };
   
-  balance: {
-    id: string;
-    symbol: string;
-    total: number;
-    available: number;
-    pending: number;
-    lastUpdated: number;
-  };
+  balance: LocalBalance;
   
   syncQueue: {
     id: string;

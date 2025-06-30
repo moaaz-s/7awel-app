@@ -1,31 +1,41 @@
 // Enhanced DataContext with local-first architecture and atomic transactions
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { loadPlatform } from '@/platform';
 import { LocalDatabaseManager, LocalDatabase } from '@/platform/local-db/local-db-types';
-import { StorageManagerV2 } from '@/platform/storage/storage-manager-v2';
+import { StorageManagerV2 as StorageManager } from '@/platform/storage/storage-manager-v2';
 import { UserRepository } from '@/platform/data-layer/repositories/user-repository';
+// Services replaced by repositories
 import { userService } from '@/services/user-service';
+import { WalletRepository } from '@/platform/data-layer/repositories/wallet-repository';
+import { TransactionRepository } from '@/platform/data-layer/repositories/transaction-repository';
+import { ContactRepository } from '@/platform/data-layer/repositories/contact-repository';
+// services needed only for StorageManager sync
 import { transactionService } from '@/services/transaction-service';
 import { walletService } from '@/services/wallet-service';
 import { contactService } from '@/services/contact-service';
 import { WalletBalance, Transaction, Contact } from '@/types';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine';
+import { SYNC_STATUS_UPDATE_INTERVAL_MS } from '@/constants/db';
+import { info, error as logError } from '@/utils/logger';
 
 interface DataContextValue {
   isInitialized: boolean;
   
   // User Profile
   userProfile: LocalDatabase['userProfile'] | undefined;
+  user: LocalDatabase['userProfile'] | undefined; // Alias for backward compatibility
   isLoadingProfile: boolean;
   updateProfile: (updates: Partial<LocalDatabase['userProfile']>) => Promise<void>;
+  updateUser: (updates: Partial<LocalDatabase['userProfile']>) => Promise<void>; // Alias for backward compatibility
   refreshProfile: () => Promise<void>;
   
   // Balance
   balance: WalletBalance | null;
   isLoadingBalance: boolean;
   refreshBalance: () => Promise<void>;
+  updateBalance: (newAvailableBalance: number) => void; // For backward compatibility
   
   // Transactions
   transactions: Transaction[];
@@ -34,6 +44,7 @@ interface DataContextValue {
   loadMoreTransactions: () => Promise<void>;
   refreshTransactions: () => Promise<void>;
   getTransaction: (id: string) => Promise<Transaction | null>;
+  addTransaction: (newTransaction: Transaction) => void; // For backward compatibility
   
   // Contacts
   contacts: Contact[];
@@ -42,6 +53,7 @@ interface DataContextValue {
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
   refreshContacts: () => Promise<void>;
+  searchContacts: (query: string) => Contact[]; // For backward compatibility
   
   // Sync Status
   syncStatus: {
@@ -52,18 +64,29 @@ interface DataContextValue {
   };
   forceSyncNow: () => Promise<void>;
   
+  // State flags for backward compatibility
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: string | null;
+  
   // Utility methods
   clearAllData: () => Promise<void>;
+  formatCurrency: (amount: number, currency?: string) => string; // For backward compatibility
+  formatDate: (dateString: string) => string; // For backward compatibility
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { authStatus } = useAuth();
+  const { authStatus, isTokenReady } = useAuth();
   const [isInitialized, setIsInitialized] = useState(false);
   const [localDb, setLocalDb] = useState<LocalDatabaseManager | null>(null);
-  const [storageManager, setStorageManager] = useState<StorageManagerV2 | null>(null);
+  const [storageManager, setStorageManager] = useState<StorageManager | null>(null);
   const [userRepository, setUserRepository] = useState<UserRepository | null>(null);
+  // New repositories
+  const [walletRepository, setWalletRepository] = useState<WalletRepository | null>(null);
+  const [transactionRepository, setTransactionRepository] = useState<TransactionRepository | null>(null);
+  const [contactRepository, setContactRepository] = useState<ContactRepository | null>(null);
   
   // User profile state
   const [userProfile, setUserProfile] = useState<LocalDatabase['userProfile'] | undefined>();
@@ -73,7 +96,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   
-  // Transactions state
+  // Transaction state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
@@ -83,17 +106,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   
   // Sync status state
-  const [syncStatus, setSyncStatus] = useState<{
-    pendingCount: number;
-    hasFailures: boolean;
-    lastSyncTime: number;
-    syncStatus: 'syncing' | 'synced' | 'error' | 'idle' | 'paused';
-  }>({
+  const [syncStatus, setSyncStatus] = useState({
     pendingCount: 0,
     hasFailures: false,
     lastSyncTime: 0,
-    syncStatus: 'synced'
+    syncStatus: 'idle' as 'syncing' | 'synced' | 'error' | 'idle' | 'paused',
   });
+  
+  // Additional state for backward compatibility
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const updateSyncStatus = useCallback(async () => {
+    if (!storageManager) return;
+    const status = await storageManager.getSyncStatus();
+    setSyncStatus({
+      pendingCount: status.pendingCount,
+      hasFailures: status.hasFailures,
+      lastSyncTime: status.lastSyncTime,
+      syncStatus: status.syncStatus
+    });
+  }, [storageManager]);
   
   // Initialize database and repositories
   useEffect(() => {
@@ -104,23 +137,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const db = await platform.getLocalDB();
         setLocalDb(db);
         
-        // Create storage manager with API services
+        // Create storage manager (still pass legacy services to preserve sync logic)
         const apiServices = {
           user: userService,
           transaction: transactionService,
           wallet: walletService,
-          contact: contactService
+          contact: contactService,
         };
-        const storage = new StorageManagerV2(db, apiServices);
+        const storage = new StorageManager(db, apiServices);
         setStorageManager(storage);
-        
-        // Create repositories
+
+        // Instantiate repositories
         const userRepo = new UserRepository(storage);
+        const walletRepo = new WalletRepository(storage);
+        const txnRepo = new TransactionRepository(storage);
+        const contactRepo = new ContactRepository(storage);
+
         setUserRepository(userRepo);
-        
+        setWalletRepository(walletRepo);
+        setTransactionRepository(txnRepo);
+        setContactRepository(contactRepo);
         setIsInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize DataContext:', error);
+        logError('Failed to initialize DataContext:', error);
       }
     };
     
@@ -134,30 +173,56 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when authenticated
   useEffect(() => {
-    if (!isInitialized || authStatus !== AuthStatus.Authenticated) {
+    info('[DataContext] Auth status:', authStatus, 'Initialized:', isInitialized);
+    if (!isInitialized || !storageManager || !isTokenReady) {
       return;
     }
     
-    // Load all data
-    loadInitialData();
-  }, [isInitialized, authStatus]);
-  
-  // Update sync status periodically
-  useEffect(() => {
-    if (!storageManager) return;
+    // Start sync only when authenticated
+    if (authStatus === AuthStatus.Authenticated) {
+      info('[DataContext] Starting sync and loading initial data...');
+      storageManager.startSync();
+      loadInitialData();
+    } else {
+      info('[DataContext] Stopping sync - not authenticated');
+      storageManager.stopSync();
+    }
     
-    const updateSyncStatus = async () => {
-      const status = await storageManager.getSyncStatus();
-      setSyncStatus({
-        pendingCount: status.pendingCount,
-        hasFailures: status.hasFailures,
-        lastSyncTime: status.lastSyncTime,
-        syncStatus: status.syncStatus
-      });
+    return () => {
+      // Cleanup sync when unmounting or auth status changes
+      if (storageManager) {
+        storageManager.stopSync();
+      }
+    };
+  }, [isInitialized, authStatus, isTokenReady, storageManager]);
+  
+  // Load user profile when locked (for PinPad welcome message)
+  useEffect(() => {
+    info('[DataContext] Auth status:', authStatus, 'Initialized:', isInitialized);
+    if (!isInitialized || !storageManager || [AuthStatus.Authenticated].includes(authStatus)) {
+      return;
+    }
+    
+    // Only load profile from local storage when locked
+    const loadProfileForLockScreen = async () => {
+      try {
+        info('[DataContext] Loading profile from local storage for lock screen...');
+        // Only load from local storage, don't make API calls
+        const localProfile = userRepository ? await userRepository.getLocalProfile() : undefined;
+        info('[DataContext] Local profile loaded:', localProfile);
+        setUserProfile(localProfile);
+      } catch (err) {
+        logError('Failed to load profile for lock screen:', err);
+      }
     };
     
+    loadProfileForLockScreen();
+  }, [isInitialized, storageManager, authStatus, userRepository]);
+  
+  // Update sync status periodically
+  useEffect(() => {    
     // Update every 5 seconds
-    const interval = setInterval(updateSyncStatus, 5000);
+    const interval = setInterval(updateSyncStatus, SYNC_STATUS_UPDATE_INTERVAL_MS);
     
     return () => clearInterval(interval);
   }, [storageManager]);
@@ -177,52 +242,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     
     // Load balance
     refreshBalance();
-    
+
     // Load transactions
+    loadLocalTransactions();
     refreshTransactions();
-    
+
     // Load contacts
+    loadLocalContacts();
     refreshContacts();
     
     // Get initial sync status
-    const status = await storageManager.getSyncStatus();
-    setSyncStatus({
-      pendingCount: status.pendingCount,
-      hasFailures: status.hasFailures,
-      lastSyncTime: status.lastSyncTime,
-      syncStatus: status.syncStatus
-    });
+    updateSyncStatus();
+  };
+  
+  // Load transactions from local storage
+  const loadLocalTransactions = async () => {
+    if (!transactionRepository) return;
+    const local = await transactionRepository.listLocal();
+    setTransactions(local);
+  };
+  
+  // Load contacts from local storage
+  const loadLocalContacts = async () => {
+    if (!contactRepository) return;
+    const local = await contactRepository.listLocal();
+    setContacts(local as any);
   };
   
   // Update user profile with optimistic updates
   const updateProfile = async (updates: Partial<LocalDatabase['userProfile']>) => {
-    if (!userRepository) {
-      throw new Error('Data layer not initialized');
-    }
+    if (!userRepository || !userProfile) return;
     
     try {
-      // Optimistically update UI
-      setUserProfile(prev => prev ? { ...prev, ...updates } : undefined);
-      
-      // Save to local and queue for sync
-      const updatedProfile = await userRepository.saveProfile(updates);
-      setUserProfile(updatedProfile);
-      
-      // Update sync status
-      if (storageManager) {
-        const status = await storageManager.getSyncStatus();
-        setSyncStatus({
-          pendingCount: status.pendingCount,
-          hasFailures: status.hasFailures,
-          lastSyncTime: status.lastSyncTime,
-          syncStatus: status.syncStatus
-        });
-      }
-    } catch (error) {
-      // Revert optimistic update on error
-      const profile = await userRepository.getProfile();
-      setUserProfile(profile);
-      throw error;
+      setIsLoadingProfile(true);
+      setError(null);
+      await userRepository.saveProfile({ ...userProfile, ...updates });
+      await refreshProfile();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      throw err;
+    } finally {
+      setIsLoadingProfile(false);
     }
   };
   
@@ -230,10 +290,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (!userRepository) return;
     
-    setIsLoadingProfile(true);
     try {
+      setIsLoadingProfile(true);
+      setError(null);
       const profile = await userRepository.getProfile();
       setUserProfile(profile);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh profile');
     } finally {
       setIsLoadingProfile(false);
     }
@@ -241,22 +304,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Refresh balance
   const refreshBalance = async () => {
-    if (!localDb) return;
-    
-    setIsLoadingBalance(true);
+    if (!walletRepository) return;
     try {
-      const response = await walletService.getBalance();
-      if (response.data) {
-        setBalance(response.data);
-        // Store in local DB
-        await localDb.set('balance', {
-          id: 'primary',
-          ...response.data,
-          lastUpdated: Date.now()
-        });
+      setIsLoadingBalance(true);
+      setError(null);
+      const bal = await walletRepository.getPrimaryBalance();
+      if (bal) {
+        setBalance(bal);
       }
-    } catch (error) {
-      console.error('Failed to refresh balance:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh balance');
     } finally {
       setIsLoadingBalance(false);
     }
@@ -264,36 +321,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Refresh transactions
   const refreshTransactions = async () => {
-    if (!localDb) return;
-    
+    if (!transactionRepository) return;
     setIsLoadingTransactions(true);
     try {
-      const response = await transactionService.listTransactions(undefined, { limit: 20 });
-      if (response.data) {
-        setTransactions(response.data.items);
-        setTransactionsCursor(response.data.nextCursor || null);
-        
-        // Store recent transactions in local DB
-        for (const tx of response.data.items.slice(0, 10)) {
-          await localDb.set('recentTransactions', {
-            id: tx.id,
-            type: tx.type,
-            amount: tx.amount,
-            currency: tx.assetSymbol || 'USD',
-            status: tx.status,
-            createdAt: tx.date || new Date().toISOString(),
-            recipientId: tx.recipientId,
-            senderId: tx.senderId,
-            recipientName: tx.type === 'send' ? tx.name : undefined,
-            senderName: tx.type === 'receive' ? tx.name : undefined,
-            note: tx.note,
-            localOnly: false,
-            syncedAt: Date.now()
-          });
-        }
-      }
+      const paginated = await transactionRepository.listRemote(20);
+      setTransactions(paginated.items);
+      setTransactionsCursor(paginated.nextCursor || null);
     } catch (error) {
-      console.error('Failed to refresh transactions:', error);
+      logError('Failed to refresh transactions:', error);
     } finally {
       setIsLoadingTransactions(false);
     }
@@ -301,20 +336,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Load more transactions
   const loadMoreTransactions = async () => {
-    if (!transactionsCursor || isLoadingTransactions) return;
-    
+    if (!transactionsCursor || isLoadingTransactions || !transactionRepository) return;
     setIsLoadingTransactions(true);
     try {
-      const response = await transactionService.listTransactions(undefined, { 
-        limit: 20, 
-        cursor: transactionsCursor 
-      });
-      if (response.data) {
-        setTransactions(prev => [...prev, ...response.data!.items]);
-        setTransactionsCursor(response.data.nextCursor || null);
-      }
+      const page = await transactionRepository.listRemote(20, transactionsCursor);
+      setTransactions(prev => [...prev, ...page.items]);
+      setTransactionsCursor(page.nextCursor || null);
     } catch (error) {
-      console.error('Failed to load more transactions:', error);
+      logError('Failed to load more transactions:', error);
     } finally {
       setIsLoadingTransactions(false);
     }
@@ -322,39 +351,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Get single transaction
   const getTransaction = async (id: string): Promise<Transaction | null> => {
-    const response = await transactionService.getTransaction(id);
-    return response || null;
+    if (!transactionRepository) return null;
+    return transactionRepository.getTransaction(id);
   };
   
   // Refresh contacts
   const refreshContacts = async () => {
-    if (!localDb) return;
-    
+    if (!contactRepository) return;
     setIsLoadingContacts(true);
     try {
-      const response = await contactService.getContacts();
-      if (response.data) {
-        setContacts(response.data.items);
-        
-        // Store in local DB
-        for (const contact of response.data.items) {
-          const platform = await loadPlatform();
-          const phoneHash = contact.phone ? await platform.ContactHelpers.hashPhoneNumber(contact.phone) : '';
-          
-          await localDb.set('contacts', {
-            id: contact.id,
-            name: contact.name,
-            phone: contact.phone || '',
-            phoneHash,
-            email: contact.email || undefined,
-            lastInteraction: Date.now(),
-            isFavorite: false,
-            syncedAt: Date.now()
-          });
-        }
-      }
+      const fresh = await contactRepository.refreshRemote();
+      setContacts(fresh as any);
     } catch (error) {
-      console.error('Failed to refresh contacts:', error);
+      logError('Failed to refresh contacts:', error);
     } finally {
       setIsLoadingContacts(false);
     }
@@ -362,79 +371,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Add contact
   const addContact = async (contact: Omit<Contact, 'id' | 'initial'>): Promise<Contact> => {
-    if (!localDb) throw new Error('Database not initialized');
-    
-    const platform = await loadPlatform();
-    
-    // Generate a temporary ID for local storage
-    const newContact: Contact = {
-      id: `temp_${Date.now()}`,
-      ...contact,
-      initial: contact.name.charAt(0).toUpperCase()
-    };
-    
-    // Store locally first
-    const phoneHash = contact.phone ? await platform.ContactHelpers.hashPhoneNumber(contact.phone) : '';
-    await localDb.set('contacts', {
-      id: newContact.id,
-      name: newContact.name,
-      phone: newContact.phone || '',
-      phoneHash,
-      email: newContact.email || undefined,
-      lastInteraction: Date.now(),
-      isFavorite: false,
-      syncedAt: Date.now()
-    });
-    
-    // Update state
-    setContacts(prev => [...prev, newContact]);
-    
-    // Note: Real API integration would happen here through a repository
-    // For now, this is just local storage
-    return newContact;
+    if (!contactRepository) throw new Error('Repository not ready');
+    try {
+      setError(null);
+      const created = await contactRepository.add(contact);
+      await loadLocalContacts();
+      return created;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add contact');
+      throw err;
+    }
   };
   
   // Update contact
   const updateContact = async (id: string, updates: Partial<Contact>): Promise<Contact> => {
-    if (!localDb) throw new Error('Database not initialized');
-    
-    const existing = await localDb.get('contacts', id);
-    if (!existing) throw new Error('Contact not found');
-    
-    const platform = await loadPlatform();
-    
-    // Update local storage
-    await localDb.set('contacts', {
-      ...existing,
-      ...updates,
-      id, // Ensure ID doesn't change
-      phoneHash: updates.phone ? await platform.ContactHelpers.hashPhoneNumber(updates.phone) : existing.phoneHash
-    });
-    
-    // Create updated contact object
-    const updatedContact = contacts.find(c => c.id === id);
-    if (!updatedContact) throw new Error('Contact not found in state');
-    
-    const resultContact = { ...updatedContact, ...updates };
-    
-    // Update state
-    setContacts(prev => prev.map(c => c.id === id ? resultContact : c));
-    
-    // Note: Real API integration would happen here through a repository
-    return resultContact;
+    if (!contactRepository) throw new Error('Repository not ready');
+    const updated = await contactRepository.update(id, updates);
+    setContacts(prev => prev.map(c => (c.id === id ? updated : c)));
+    return updated;
   };
   
   // Delete contact
   const deleteContact = async (id: string) => {
-    if (!localDb) return;
-    
-    // Delete from local storage
-    await localDb.delete('contacts', id);
-    
-    // Update state
+    if (!contactRepository) return;
+    await contactRepository.remove(id);
     setContacts(prev => prev.filter(c => c.id !== id));
-    
-    // Note: Real API integration would happen here through a repository
   };
   
   // Force sync now
@@ -444,27 +405,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await storageManager.processSyncQueue();
     
     // Update sync status
-    const status = await storageManager.getSyncStatus();
-    setSyncStatus({
-      pendingCount: status.pendingCount,
-      hasFailures: status.hasFailures,
-      lastSyncTime: status.lastSyncTime,
-      syncStatus: status.syncStatus
-    });
+    await updateSyncStatus();
   };
   
   // Clear all data
   const clearAllData = async () => {
-    if (!localDb) return;
-    
-    // Clear all stores
-    await localDb.clear('userProfile');
-    await localDb.clear('balance');
-    await localDb.clear('recentTransactions');
-    await localDb.clear('contacts');
-    await localDb.clear('syncQueue');
-    await localDb.clear('failedSyncs');
-    
+    if (!storageManager) return;
+    const stores = ['userProfile', 'balance', 'recentTransactions', 'contacts', 'syncQueue', 'failedSyncs'] as const;
+    for (const s of stores) {
+      await storageManager.local.clear(s as any);
+    }
     // Reset state
     setUserProfile(undefined);
     setBalance(null);
@@ -473,19 +423,54 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setTransactionsCursor(null);
   };
   
-  const contextValue: DataContextValue = {
+  // Backward compatibility methods
+  const updateBalance = (newAvailableBalance: number) => {
+    setBalance(prev => prev ? { ...prev, available: newAvailableBalance } : null);
+  };
+  
+  const addTransaction = (newTransaction: Transaction) => {
+    setTransactions(prev => [newTransaction, ...prev]);
+  };
+  
+  const searchContacts = (query: string) => {
+    if (!query) return contacts;
+    const lowerQuery = query.toLowerCase();
+    return contacts.filter(contact => 
+      contact.name.toLowerCase().includes(lowerQuery) ||
+      contact.phone.includes(query)
+    );
+  };
+  
+  const formatCurrency = (amount: number, currency?: string) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+    }).format(amount);
+  };
+  
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+  
+  // Derived state for backward compatibility
+  const isLoading = isLoadingProfile || (authStatus === AuthStatus.Authenticated && !isInitialized);
+  
+  const value: DataContextValue = {
     isInitialized,
     
     // User Profile
     userProfile,
+    user: userProfile, // Alias
     isLoadingProfile,
     updateProfile,
+    updateUser: updateProfile, // Alias
     refreshProfile,
     
     // Balance
     balance,
     isLoadingBalance,
     refreshBalance,
+    updateBalance,
     
     // Transactions
     transactions,
@@ -494,6 +479,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     loadMoreTransactions,
     refreshTransactions,
     getTransaction,
+    addTransaction,
     
     // Contacts
     contacts,
@@ -502,17 +488,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     updateContact,
     deleteContact,
     refreshContacts,
+    searchContacts,
     
-    // Sync
+    // Sync Status
     syncStatus,
     forceSyncNow,
     
-    // Utilities
-    clearAllData
+    // State flags
+    isLoading,
+    isRefreshing,
+    error,
+    
+    // Utility methods
+    clearAllData,
+    formatCurrency,
+    formatDate
   };
   
   return (
-    <DataContext.Provider value={contextValue}>
+    <DataContext.Provider value={value}>
       {children}
     </DataContext.Provider>
   );

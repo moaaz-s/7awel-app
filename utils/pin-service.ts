@@ -14,7 +14,8 @@ import {
   getPinAttempts,
   getPinLockUntil,
   setPinLockUntil,
-  clearPinForgotten
+  clearPinForgotten,
+  setPinForgotten as setPinForgottenFlag
 } from '@/utils/storage';
 import { MAX_PIN_ATTEMPTS, PIN_LOCKOUT_TIME_MS } from '@/constants/auth-constants';
 
@@ -112,3 +113,10 @@ export async function isLocked(): Promise<boolean> {
   
   return isLocked;
 }
+
+
+export async function setPinForgotten(): Promise<void> {
+  await setPinForgottenFlag();
+  await clearPin();
+}
+

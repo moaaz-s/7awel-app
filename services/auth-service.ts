@@ -1,12 +1,14 @@
 // services/auth-service.ts
-import { httpClient, httpClientUnauthenticated } from "@/services/http-client";
-import { OtpChannel } from "@/services/api-service";
+import { privateHttpClient } from "@/services/httpClients/private";
+import { publicHttpClient } from "@/services/httpClients/public";
 import type {
   ApiResponse,
+  CheckAvailabilityResponse,
   OtpInitiationResponse,
   OtpVerificationResponse,
   TokenAcquisitionResponse
 } from "@/types";
+import { OTP_CHANNEL } from "@/context/auth/auth-types";
 import { handleError, respondOk } from "@/utils/api-utils";
 import { ErrorCode } from "@/types/errors";
 import { info } from "@/utils/logger";
@@ -18,6 +20,7 @@ const BASE_PATH = "/auth";
 /*********************************************/
 
 /**
+ * TODO: shall we handle checkavailability here or in the backend only?
  * Check availability of phone or email
  */
 async function checkAvailability(
@@ -25,8 +28,8 @@ async function checkAvailability(
   value: string,
   skipAuth: boolean = false
 ): Promise<ApiResponse<boolean>> {
-  let client = skipAuth ? httpClientUnauthenticated : httpClient;
-  let response = await client.get<ApiResponse<{available: boolean}>>(
+  const client = skipAuth ? publicHttpClient : privateHttpClient;
+  const response = await client.get<ApiResponse<CheckAvailabilityResponse>>(
     `${BASE_PATH}/check-availability`,
     { medium, value }
   );
@@ -49,7 +52,7 @@ async function checkAvailability(
 async function sendOtp(
   medium: "phone" | "email",
   value: string,
-  channel: OtpChannel = OtpChannel.WHATSAPP,
+  channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP,
   checkIfClaimed: boolean = false,
   skipAuth: boolean = false
 ): Promise<ApiResponse<OtpInitiationResponse>> {
@@ -61,15 +64,15 @@ async function sendOtp(
   }
 
   if (checkIfClaimed) {
-    let {error: checkAvailabilityError, errorCode: checkAvailabilityErrorCode} = await checkAvailability(medium, value, skipAuth);
+    const {error: checkAvailabilityError, errorCode: checkAvailabilityErrorCode} = await checkAvailability(medium, value, skipAuth);
     if (checkAvailabilityErrorCode) {
       return handleError(checkAvailabilityError || `Medium [${medium}] and value [${value}] are not available.`, checkAvailabilityErrorCode);
     }
   }
 
-  let client = skipAuth ? httpClientUnauthenticated : httpClient;
+  const client = skipAuth ? publicHttpClient : privateHttpClient;
   
-  let response = await client.post<ApiResponse<OtpInitiationResponse>>(
+  const response = await client.post<ApiResponse<OtpInitiationResponse>>(
     `${BASE_PATH}/otp/send`,
     { medium, value, channel }
   );
@@ -99,8 +102,8 @@ async function verifyOtp(
   if (!otp)
     return handleError("OTP is required.", ErrorCode.OTP_REQUIRED);
   
-  let client = skipAuth ? httpClientUnauthenticated : httpClient;
-  let response = await client.post<ApiResponse<OtpVerificationResponse>>(
+  const client = skipAuth ? publicHttpClient : privateHttpClient;
+  const response = await client.post<ApiResponse<OtpVerificationResponse>>(
     `${BASE_PATH}/otp/verify`,
     { medium, value, otp }
   );
@@ -129,7 +132,7 @@ export const authService = {
   async sendOtpSignin(
     medium: "phone" | "email",
     value: string,
-    channel: OtpChannel = OtpChannel.WHATSAPP,
+    channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP,
   ): Promise<ApiResponse<OtpInitiationResponse>> {
     return sendOtp(medium, value, channel, false, true);
   },
@@ -141,7 +144,7 @@ export const authService = {
   async sendOtpSignup(
     medium: "phone" | "email",
     value: string,
-    channel: OtpChannel = OtpChannel.WHATSAPP,
+    channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP,
   ): Promise<ApiResponse<OtpInitiationResponse>> {
     return sendOtp(medium, value, channel, true, true);
   },
@@ -153,7 +156,7 @@ export const authService = {
   async sendOtpUpdateAuthenticated(
     medium: "phone" | "email",
     value: string,
-    channel: OtpChannel = OtpChannel.WHATSAPP,
+    channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP,
   ): Promise<ApiResponse<OtpInitiationResponse>> {
     return sendOtp(medium, value, channel, true, false);
   },
@@ -165,7 +168,7 @@ export const authService = {
   async sendOtpOperationAuthenticated(
     medium: "phone" | "email",
     value: string,
-    channel: OtpChannel = OtpChannel.WHATSAPP,
+    channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP,
   ): Promise<ApiResponse<OtpInitiationResponse>> {
     return sendOtp(medium, value, channel, false, false);
   },
@@ -205,7 +208,7 @@ export const authService = {
     //       whatever we may need as params should be checked for validity
     //       Feel free to add error codes to ErrorCode if necessary.
     
-    const response = await httpClientUnauthenticated
+    const response = await publicHttpClient
                             .post<ApiResponse<TokenAcquisitionResponse>>
                             (`${BASE_PATH}/login`, { phone, email });
 
@@ -215,7 +218,7 @@ export const authService = {
     // TODO: handle error cases from the API here via handleError.
     //       Feel free to add error codes to ErrorCode if necessary.
 
-    httpClient.setToken(response.data.accessToken);
+    privateHttpClient.setToken(response.data.accessToken);
     return response;
   },
 
@@ -225,11 +228,11 @@ export const authService = {
   async refreshToken(
     refreshToken: string
   ): Promise<ApiResponse<TokenAcquisitionResponse>> {
-    const response = await httpClient.post<ApiResponse<TokenAcquisitionResponse>>(`${BASE_PATH}/refresh`, { refreshToken });
+    const response = await privateHttpClient.post<ApiResponse<TokenAcquisitionResponse>>(`${BASE_PATH}/refresh`, { refreshToken });
     if (response.error || !response.data?.accessToken || !response.data?.refreshToken)
       return handleError(response.error || "Failed to refresh token", response.errorCode || ErrorCode.UNKNOWN);
         
-    httpClient.setToken(response.data.accessToken);
+    privateHttpClient.setToken(response.data.accessToken);
     return response;
   },
 
@@ -239,7 +242,7 @@ export const authService = {
   async logout(): Promise<void> {
     // TODO: Force expire on remote token
 
-    // const response = await httpClient.post<{
+    // const response = await privateHttpClient.post<{
     //   accessToken: string;
     //   refreshToken: string;
     // }>(`${BASE_PATH}/logout`);
@@ -247,13 +250,13 @@ export const authService = {
     // TODO: handle error cases from the API here via handleError.
     //       Feel free to add error codes to ErrorCode if necessary.
     
-    httpClient.clearToken();
+    privateHttpClient.clearToken();
   },
 
   /** Get list of active devices/sessions */
   async getDevices(): Promise<ApiResponse<any>> {
     try {
-      const response = await httpClient.get<any>(`${BASE_PATH}/devices`);
+      const response = await privateHttpClient.get<any>(`${BASE_PATH}/devices`);
       return respondOk(response);
     } catch (e) {
       return handleError("Failed to fetch devices", ErrorCode.SERVER_ERROR);
@@ -264,7 +267,7 @@ export const authService = {
   async revokeDevice(deviceId: string): Promise<ApiResponse<void>> {
     if (!deviceId) return handleError("Device ID is required", ErrorCode.VALIDATION_ERROR);
     try {
-      const response = await httpClient.delete<void>(`${BASE_PATH}/devices/${deviceId}`);
+      const response = await privateHttpClient.delete<void>(`${BASE_PATH}/devices/${deviceId}`);
       return respondOk(response);
     } catch (e) {
       return handleError(`Failed to revoke device ${deviceId}`, ErrorCode.SERVER_ERROR);
@@ -274,7 +277,7 @@ export const authService = {
   /** Revoke all sessions/devices */
   async revokeAllSessions(): Promise<ApiResponse<void>> {
     try {
-      const response = await httpClient.delete<void>(`${BASE_PATH}/devices`);
+      const response = await privateHttpClient.delete<void>(`${BASE_PATH}/devices`);
       return respondOk(response);
     } catch (e) {
       return handleError("Failed to revoke all sessions", ErrorCode.SERVER_ERROR);

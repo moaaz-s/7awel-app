@@ -6,9 +6,9 @@ import { userService } from '@/services/user-service';
 import { transactionService } from '@/services/transaction-service';
 import { walletService } from '@/services/wallet-service';
 import { contactService } from '@/services/contact-service';
-
-const MAX_RETRIES = 3;
-const SYNC_INTERVAL_MS = 30000; // 30 seconds
+import { OFFLINE_SYNC_MAX_RETRIES, OFFLINE_QUEUE_SYNC_INTERVAL_MS } from '@/constants/db';
+import { info, error as logError } from '@/utils/logger';
+import { loadPlatform } from '@/platform';
 
 interface ApiServices {
   user: typeof userService;
@@ -18,15 +18,19 @@ interface ApiServices {
 }
 
 export class StorageManagerV2 {
-  private syncInterval?: NodeJS.Timer;
+  private apiServices: ApiServices;
+  private syncInterval?: NodeJS.Timeout;
+  private networkListenerCleanup?: () => void;
   private isSyncing = false;
+  local: LocalDatabaseManager;
   
   constructor(
-    public local: LocalDatabaseManager,
-    private apiServices: ApiServices
+    local: LocalDatabaseManager,
+    apiServices: ApiServices
   ) {
-    this.initializeNetworkListeners();
-    this.startPeriodicSync();
+    this.local = local;
+    this.apiServices = apiServices;
+    // Don't start sync automatically - wait for auth
   }
   
   /**
@@ -104,7 +108,7 @@ export class StorageManagerV2 {
                 error: error.message
               };
               
-              if (updatedItem.retryCount < MAX_RETRIES) {
+              if (updatedItem.retryCount < OFFLINE_SYNC_MAX_RETRIES) {
                 // Update in sync queue
                 await tx.set('syncQueue', updatedItem);
               } else {
@@ -131,33 +135,57 @@ export class StorageManagerV2 {
   }
   
   /**
+   * TODO: Add more stores & operations for full storage sync
    * Sync a specific item to remote
    */
   private async syncItem(item: any): Promise<void> {
     switch (item.storeName) {
       case 'userProfile':
         if (item.operation === 'update') {
-          const response = await this.apiServices.user.updateProfile(item.data);
-          if (!response.success) {
+          const response = await this.apiServices.user.updateUser(item.data);
+          if (response.error) {
             throw new Error(response.error || 'Profile sync failed');
           }
         }
         break;
         
-      case 'recentTransactions':
-        if (item.operation === 'create') {
-          // For transactions, we might need to map the data format
-          const response = await this.apiServices.transaction.sendMoney({
-            recipientPhone: item.data.recipientPhone,
-            amount: item.data.amount,
-            currency: item.data.currency,
-            note: item.data.note
-          });
-          if (!response.success) {
-            throw new Error(response.error || 'Transaction sync failed');
+      case 'recentTransactions': {
+        switch (item.operation) {
+          case 'create': {
+            // Currently only sendMoney covers creates; expect data contains required fields.
+            const { recipientPhone, amount, currency, note } = item.data;
+            if (!recipientPhone) {
+              // Data incomplete – skip remote sync but succeed to clear queue.
+              break;
+            }
+            const res = await this.apiServices.transaction.sendMoney(
+              recipientPhone,
+              amount,
+              currency,
+              note,
+            );
+            if (res.error) throw new Error(res.error || 'Transaction sync failed');
+            break;
           }
+          // Updates/deletes not yet supported by backend – treat as no-op success
+          default:
+            break;
         }
         break;
+      }
+
+      case 'contacts': {
+        // Backend endpoints for individual contacts are not available in mock API yet.
+        // Perform no-op so that queue item is considered synced.
+        // Future: use contactService APIs when implemented.
+        break;
+      }
+
+      case 'balance': {
+        // Balance is refreshed from backend only; local writes are UI convenience.
+        // No remote sync needed currently.
+        break;
+      }
         
       default:
         console.warn(`Unknown sync operation for ${item.storeName}`);
@@ -192,37 +220,63 @@ export class StorageManagerV2 {
   /**
    * Initialize network listeners
    */
-  private initializeNetworkListeners(): void {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', this.handleOnline);
-      window.addEventListener('offline', this.handleOffline);
-    }
+  private async initializeNetworkListeners(): Promise<void> {
+    const platform = await loadPlatform();
+    
+    // Use platform-specific network listener
+    this.networkListenerCleanup = await platform.addNetworkListener((online: boolean) => {
+      if (online) {
+        this.handleOnline();
+      } else {
+        this.handleOffline();
+      }
+    });
   }
   
   /**
    * Handle network online event
    */
   private handleOnline = (): void => {
-    console.log('Network restored, processing sync queue...');
-    this.processSyncQueue().catch(console.error);
+    info('Network restored, processing sync queue...');
+    this.processSyncQueue().catch(logError);
   };
   
   /**
    * Handle network offline event
    */
   private handleOffline = (): void => {
-    console.log('Network offline, pausing sync...');
+    info('Network offline, pausing sync...');
+    // The periodic sync already checks network status, so we just log here
+    // This could be extended to cancel in-flight requests if needed
   };
   
   /**
    * Start periodic sync
    */
   private startPeriodicSync(): void {
-    this.syncInterval = setInterval(() => {
-      if (typeof window !== 'undefined' && navigator.onLine) {
-        this.processSyncQueue().catch(console.error);
+    this.syncInterval = setInterval(async () => {
+      const platform = await loadPlatform();
+      const online = await platform.isOnline();
+      
+      if (online) {
+        this.processSyncQueue().catch(logError);
       }
-    }, SYNC_INTERVAL_MS);
+    }, OFFLINE_QUEUE_SYNC_INTERVAL_MS);
+  }
+  
+  /**
+   * Start sync operations (should only be called when authenticated)
+   */
+  startSync(): void {
+    this.initializeNetworkListeners();
+    this.startPeriodicSync();
+  }
+  
+  /**
+   * Stop sync operations (should be called when logged out)
+   */
+  stopSync(): void {
+    this.destroy();
   }
   
   /**
@@ -231,11 +285,12 @@ export class StorageManagerV2 {
   destroy(): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
+      this.syncInterval = undefined;
     }
     
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', this.handleOnline);
-      window.removeEventListener('offline', this.handleOffline);
+    if (this.networkListenerCleanup) {
+      this.networkListenerCleanup();
+      this.networkListenerCleanup = undefined;
     }
   }
 }

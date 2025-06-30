@@ -2,15 +2,18 @@
 
 import { useState, useCallback } from "react"
 import { info, warn, error as logError } from "@/utils/logger"
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import { useLanguage } from "@/context/LanguageContext"
 import {
   transactionService,
   TransactionStatus,
   type TransactionResult,
-  CASH_OUT_METHODS,
 } from "@/services/transaction-service"
 import type { Contact } from "@/types"
+import { OTP_CHANNEL } from "@/context/auth/auth-types"
+import { isApiSuccess } from "@/utils/api-utils"
+import type { CashOutResponse } from "@/types"
+import { ErrorCode } from "@/types/errors"
 
 /**
  * Custom hook for transaction operations
@@ -83,60 +86,17 @@ export function useTransaction() {
   )
 
   /**
-   * Cash out money
-   */
-  const cashOut = useCallback(
-    async (amount: number, method: string): Promise<TransactionResult> => {
-      setStatus(TransactionStatus.LOADING)
-      setError(null)
-
-      const currentBalance = balance?.available ?? 0;
-
-      const result = await transactionService.cashOut(amount, method, currentBalance)
-
-      if (result.success) {
-        // Calculate fee
-        const cashOutMethod = CASH_OUT_METHODS.find((m) => m.id === method)
-        if (cashOutMethod) {
-          const feePercentage = cashOutMethod.feePercentage
-          const fee = (amount * feePercentage) / 100
-          const totalAmount = amount + fee
-
-          // Update local state
-          updateBalance(currentBalance - totalAmount)
-
-          // Create transaction object
-          const newTransaction = {
-            id: `tx${Date.now()}`,
-            name: `${method.charAt(0).toUpperCase() + method.slice(1)} Withdrawal`,
-            amount: -amount,
-            date: new Date().toISOString().split("T")[0],
-            type: "cash_out" as const,
-            status: "completed" as const,
-            reference: result.reference,
-          }
-
-          addTransaction(newTransaction)
-        }
-
-        setStatus(TransactionStatus.SUCCESS)
-      } else {
-        setError(result.error || "Transaction failed")
-        setStatus(TransactionStatus.ERROR)
-      }
-
-      return result
-    },
-    [balance, updateBalance, addTransaction],
-  )
-
-  /**
    * Request money
    */
-  const requestMoney = useCallback((amount: number) => {
+  const requestMoney = useCallback((amount: number, note?: string) => {
     try {
       if (!user?.id) throw new Error("User ID not found");
-      return transactionService.requestMoney(user.id, amount)
+      return transactionService.requestMoney({ 
+        amount, 
+        note, 
+        contactId: user.id, 
+        channel: OTP_CHANNEL.WHATSAPP 
+      })
     } catch (error) {
       setError((error as Error).message)
       return { qrData: { userId: "", timestamp: 0 }, qrString: "" }
@@ -157,12 +117,50 @@ export function useTransaction() {
   }, [user])
 
   /**
-   * Reset transaction state
+   * Cash out funds
+   * TBD
    */
-  const resetTransaction = useCallback(() => {
-    setStatus(TransactionStatus.IDLE)
-    setError(null)
-  }, [])
+  const cashOut = useCallback(
+    async (amount: number, methodId: string): Promise<TransactionResult> => {
+      setError(null)
+      setStatus(TransactionStatus.IDLE)
+      info("[useTransaction.cashOut] Called with:", { amount, methodId })
+      const currentBalance = balance?.available ?? 0
+      if (isNaN(amount) || amount <= 0) {
+        const errorMsg = t("uiErrors.invalidAmount")
+        setError(errorMsg)
+        return { success: false, error: errorMsg }
+      }
+      if (amount > currentBalance) {
+        const errorMsg = t("uiErrors.insufficientFunds")
+        setError(errorMsg)
+        return { success: false, error: errorMsg }
+      }
+      setStatus(TransactionStatus.LOADING)
+      try {
+        const response = await transactionService.initiateCashout({ fromAccount: user?.id ?? "", toAccount: methodId, amount, currency: "USD" })
+        if (isApiSuccess(response) && response.data) {
+          updateBalance(currentBalance - amount)
+          info("[useTransaction.cashOut] Success", response.data)
+          setStatus(TransactionStatus.SUCCESS)
+          return { success: true, reference: response.data.reference }
+        } else {
+          const errorMsg = response.error || t("uiErrors.cashOutFailed")
+          warn("[useTransaction.cashOut] Failed. Error:", errorMsg)
+          setError(errorMsg)
+          setStatus(TransactionStatus.ERROR)
+          return { success: false, error: errorMsg }
+        }
+      } catch (err: any) {
+        logError("[useTransaction.cashOut] Error:", err)
+        const errorMsg = err.message || t("uiErrors.cashOutFailed")
+        setError(errorMsg)
+        setStatus(TransactionStatus.ERROR)
+        return { success: false, error: errorMsg }
+      }
+    },
+    [balance, updateBalance, t, user]
+  )
 
   return {
     status,
@@ -171,9 +169,8 @@ export function useTransaction() {
     isSuccess: status === TransactionStatus.SUCCESS,
     isError: status === TransactionStatus.ERROR,
     sendMoney,
-    cashOut,
     requestMoney,
     generatePaymentQR,
-    resetTransaction,
+    cashOut
   }
 }

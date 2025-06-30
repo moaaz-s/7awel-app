@@ -58,14 +58,18 @@ export function isTokenExpired(token: string | null, bufferSeconds = 300): boole
   
   try {
     const payload = decodeToken(token);
+    info('[TokenUtils] Token payload:', payload);
     if (!payload || !payload.exp) return true;
-    
-    // Get current time in seconds
-    const now = Math.floor(Date.now() / 1000);
+
+    const expJS = new Date(payload.exp * 1000);
+    info('[TokenUtils] Token expiration:', expJS);
+
+    const isExpired = expJS.getTime() <= (Date.now() + bufferSeconds * 1000);
+    info('[TokenUtils] Token expired:', isExpired);
     
     // Consider token expired if within buffer period before actual expiration
     // This helps avoid edge cases where token expires during an operation
-    return payload.exp <= (now + bufferSeconds);
+    return isExpired;
   } catch (e) {
     logError('[TokenUtils] Error checking token expiration:', e);
     return true; // Consider invalid tokens as expired

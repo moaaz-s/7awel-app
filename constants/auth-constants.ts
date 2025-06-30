@@ -8,9 +8,13 @@
  * Auth and session related constants
  */
 
+// PIN related constants
+export const PIN_LENGTH = 6;
+
 // Session timeouts
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-export const SESSION_IDLE_TIMEOUT_MS = 1 * 60 * 1000; // 5 minutes
+export const SESSION_IDLE_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
+export const SESSION_LOCKOUT_TIMEOUT_WARNING_MS = 30 * 1000; // 30 seconds warning before lockout
 
 // Auth related constants
 export const PIN_MIN_LENGTH = 4;
@@ -29,6 +33,7 @@ export const OTP_LOCKOUT_DURATION_MS = 5 * 60 * 1000;
 
 // Generic helper: collect all constants in one object if needed elsewhere
 export const AuthConstants = {
+  PIN_LENGTH,
   SESSION_TTL_MS,
   SESSION_IDLE_TIMEOUT_MS,
   PIN_MIN_LENGTH,
@@ -38,4 +43,5 @@ export const AuthConstants = {
   MAX_OTP_ATTEMPTS,
   OTP_EXPIRY_MS,
   OTP_LOCKOUT_DURATION_MS,
+  SESSION_LOCKOUT_TIMEOUT_WARNING_MS,
 } as const;

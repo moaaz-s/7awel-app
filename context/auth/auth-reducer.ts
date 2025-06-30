@@ -4,11 +4,16 @@
  * Pure reducer function for managing authentication state transitions.
  * Separated from the context to improve maintainability and testability.
  */
+import { 
+  AuthState, 
+  AuthAction, 
+  AuthFlowState
+} from './auth-types';
 import { AuthStatus } from './auth-state-machine';
-import { AuthState, AuthAction } from './auth-types';
-import { AUTH_STEP_AUTHENTICATED } from '@/context/auth/flow/flowSteps';
-import { getFlowTypeSteps, AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
+import { AUTH_STEP_AUTHENTICATED } from './flow/flowSteps';
+import { AuthFlowType, getFlowTypeSteps, getInitialFlowState } from './flow/flowsOrchestrator';
 import { error as logError, info } from '@/utils/logger';
+import { SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
 
 /**
  * Initial authentication state
@@ -19,9 +24,14 @@ export const initialAuthState: AuthState = {
   isTokenReady: false,
   currentStep: null,
   activeFlow: null,
-  stepData: {},
+  flowState: getInitialFlowState(),
   error: null,
-  deviceInfo: null
+  deviceInfo: null,
+
+  // Session management
+  session: null,
+  lastActivity: Date.now(),
+  idleTimeoutMs: SESSION_IDLE_TIMEOUT_MS
 };
 
 /**
@@ -44,6 +54,10 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
     case 'START_FLOW': {
       const { type, initialData, initialIndex } = action.payload;
       
+      // Check if any step can be executed with the current state
+      const testState: AuthFlowState = { ...state.flowState, ...initialData };
+      
+      // First get the complete flow steps without filtering
       const flowSteps = getFlowTypeSteps(type as AuthFlowType);
       const idx = (initialIndex != null && initialIndex >= 0 && initialIndex < flowSteps.length) ? initialIndex : 0;
       
@@ -55,7 +69,9 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
           isTokenReady: true,
           currentStep: AUTH_STEP_AUTHENTICATED,
           activeFlow: null,
-          stepData: { ...state.stepData, ...initialData },
+
+          flowState: { ...state.flowState, ...initialData },
+          
           error: null
         };
       }
@@ -72,15 +88,17 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         ...state,
         activeFlow: { type, steps: flowSteps, currentIndex: idx },
         currentStep: flowSteps[idx].step,
-        stepData: { ...state.stepData, ...initialData },
+        
+        flowState: { ...state.flowState, ...initialData },
+        
         error: null
       };
     }
 
     case 'ADVANCE_STEP': {
       const { nextStep, nextData, nextIndex } = action.payload;
-      // Merge previous stepData with nextData for accurate auth checks
-      const mergedData = { ...state.stepData, ...nextData };
+      // Merge previous state with nextData for accurate auth checks
+      const mergedData = { ...state.flowState, ...nextData };
       
       // If we've reached the authenticated step and have both token & pin, mark full auth
       if (nextStep === AUTH_STEP_AUTHENTICATED && mergedData.tokenValid && mergedData.pinSet) {
@@ -90,7 +108,7 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
           isTokenReady: true,
           currentStep: nextStep,
           activeFlow: null,
-          stepData: { ...state.stepData, ...nextData }
+          flowState: { ...state.flowState, ...nextData }
         };
       }
       
@@ -102,8 +120,8 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         return {
           ...state,
           currentStep: nextStep,
-          stepData: {
-            ...state.stepData,
+          flowState: {
+            ...state.flowState,
             ...nextData
           },
           // Keep the flow active but with updated state
@@ -121,20 +139,21 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
             currentStep: state.currentStep,
             currentIndex: state.activeFlow?.currentIndex,
             flowType: state.activeFlow?.type,
-            stepData: state.stepData
+            flowState: state.flowState
           });
           
-          // Throw an error in development, but in production just end the flow gracefully
-          if (process.env.NODE_ENV !== 'production') {
-            throw new Error('Auth flow error: No valid next step found and no explicit step provided');
-          }
+          // // TODO: Should we keep or remove?
+          // //  Throw an error in development, but in production just end the flow gracefully
+          // if (process.env.NODE_ENV !== 'production') {
+          //   throw new Error('Auth flow error: No valid next step found and no explicit step provided');
+          // }
           
           // In production, end the flow as gracefully as possible
           return {
             ...state,
             currentStep: null,
-            stepData: {
-              ...state.stepData,
+            flowState: {
+              ...state.flowState,
               ...nextData
             },
             activeFlow: null, // Clear the active flow
@@ -146,8 +165,8 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
       return {
         ...state,
         currentStep: nextStep,
-        stepData: {
-          ...state.stepData,
+        flowState: {
+          ...state.flowState,
           ...nextData
         },
         activeFlow: state.activeFlow
@@ -159,11 +178,11 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
       };
     }
 
-    case 'SET_STEP_DATA':
+    case 'SET_FLOW_STATE':
       return {
         ...state,
-        stepData: {
-          ...state.stepData,
+        flowState: {
+          ...state.flowState,
           ...action.payload
         }
       };
@@ -210,6 +229,42 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         isTokenReady: false,
       };
 
+    // Session actions
+    case 'SET_SESSION':
+      return { 
+        ...state, 
+        session: action.payload,
+        lastActivity: Date.now() // Reset activity on session change
+      };
+
+    case 'UPDATE_SESSION_ACTIVITY':
+      return { 
+        ...state, 
+        lastActivity: Date.now(),
+        session: state.session ? {
+          ...state.session,
+          lastActivity: Date.now(),
+          expiresAt: Date.now() + state.idleTimeoutMs
+        } : null
+      };
+
+    case 'LOCK_SESSION':
+      return { 
+        ...state,
+        authStatus: AuthStatus.Locked,
+        session: state.session ? {
+          ...state.session,
+          isActive: false,
+          pinVerified: false
+        } : null
+      };
+
+    case 'CLEAR_SESSION':
+      return { 
+        ...state, 
+        session: null,
+        lastActivity: Date.now()
+      };
     default:
       return state;
   }

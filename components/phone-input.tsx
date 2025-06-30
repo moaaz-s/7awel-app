@@ -16,7 +16,7 @@ import {
 import 'react-international-phone/style.css'
 import Image from 'next/image'
 import { useLanguage } from '@/context/LanguageContext'
-import { OtpChannel } from '@/services/api-service';
+import { OTP_CHANNEL } from '@/context/auth/auth-types'
 
 // Enhanced country item type
 interface CountryItem {
@@ -25,7 +25,7 @@ interface CountryItem {
   dialCode: string;
 }
 
-// Convert library countries to our format
+// Convert library countries to short format (to fit the UI)
 const formattedCountries: CountryItem[] = defaultCountries.map(country => ({
   name: ['ae', 'sa', 'us', 'za'].includes(country[1])
     ? country[1] === 'ae' ? 'UAE'
@@ -54,10 +54,10 @@ const getCountryFlag = (iso2: CountryIso2) => {
   if (iso2 === 'sy') {
     return (
       <Image
-        src="/flag-syria.png"
+        src="/flag-syria.svg"
         alt="Syria"
-        width={20}
-        height={15}
+        width={24}
+        height={24}
         className="rounded-[2px]"
       />
     );
@@ -70,13 +70,13 @@ const getCountryFlag = (iso2: CountryIso2) => {
 interface PhoneInputProps {
   defaultCountryCode?: string
   defaultPhoneNumber?: string
-  onSubmit: (countryCode: string, phoneNumber: string, channel: OtpChannel) => void
+  onSubmit: (countryCode: string, phoneNumber: string, channel: OTP_CHANNEL) => void
   error?: string
   isLoading?: boolean
 }
 
 export function PhoneInput({
-  defaultCountryCode = "+1",
+  defaultCountryCode = "1",
   defaultPhoneNumber = "",
   onSubmit,
   error,
@@ -90,7 +90,7 @@ export function PhoneInput({
   const [selectedCountry, setSelectedCountry] = useState<CountryIso2>('us')
   const [selectedCountryDialCode, setSelectedCountryDialCode] = useState(defaultCountryCode)
   const [phoneValue, setPhoneValue] = useState(defaultPhoneNumber)
-  const [channel, setChannel] = useState<OtpChannel>(OtpChannel.WHATSAPP);
+  const [channel, setChannel] = useState<OTP_CHANNEL>(OTP_CHANNEL.WHATSAPP);
 
   const countryListRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -196,7 +196,7 @@ export function PhoneInput({
   }
 
   // Submit handler for selected channel
-  const handleChannelSubmit = (selectedChannel: OtpChannel) => {
+  const handleChannelSubmit = (selectedChannel: OTP_CHANNEL) => {
     if (!validatePhone()) return;
     const national = phoneValue.replace(/\D/g, '');
     onSubmit(selectedCountryDialCode, national, selectedChannel);
@@ -208,7 +208,7 @@ export function PhoneInput({
       return t('auth.selectChannel')
     }
 
-    return channel === OtpChannel.WHATSAPP
+    return channel === OTP_CHANNEL.WHATSAPP
       ? t('auth.weWillSendWhatsApp')
       : t('auth.weWillSendTelegram')
   }
@@ -233,7 +233,7 @@ export function PhoneInput({
             >
               <div className="flex flex-row items-center justify-between min-w-[80px]">
                 {getCountryFlag(selectedCountry)}
-                <span className="text-sm font-medium">{selectedCountryDialCode}</span>
+                <span className="text-sm font-medium">+{selectedCountryDialCode}</span>
                 <ChevronDownIcon className="h-4 w-4" />
               </div>
             </Button>
@@ -309,7 +309,9 @@ export function PhoneInput({
 
       {/* Channel selector - WhatsApp and Telegram buttons */}
       <div className="space-y-12 mt-6">
-        <div className="space-y-3">
+
+        {/* Hidden Block because we don't have telegram auth bot yet */}
+        <div className="space-y-3 hidden">
           <p className="text-sm font-medium text-center mb-2">
             {t('auth.selectChannel')}
           </p>
@@ -317,12 +319,12 @@ export function PhoneInput({
           <div className="flex flex-col gap-3">
             <Button
               type="button"
-              variant={channel === OtpChannel.WHATSAPP ? "white" : "outline"}
-              className={channel === OtpChannel.WHATSAPP ? "bg-[#25D366] text-white hover:bg-[#128C7E]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
-              onClick={() => setChannel(OtpChannel.WHATSAPP)}
+              variant={channel === OTP_CHANNEL.WHATSAPP ? "white" : "outline"}
+              className={channel === OTP_CHANNEL.WHATSAPP ? "bg-[#25D366] text-white hover:bg-[#128C7E]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
+              onClick={() => setChannel(OTP_CHANNEL.WHATSAPP)}
               fullWidth
               size="default"
-              withoutShadow={channel !== OtpChannel.WHATSAPP}
+              withoutShadow={channel !== OTP_CHANNEL.WHATSAPP}
               icon={<WhatsAppIcon size={18} />}
             >
               {t('auth.whatsapp')}
@@ -330,12 +332,12 @@ export function PhoneInput({
 
             <Button
               type="button"
-              variant={channel === OtpChannel.TELEGRAM ? "white" : "outline"}
-              className={channel === OtpChannel.TELEGRAM ? "bg-[#0088cc] text-white hover:bg-[#0077b5]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
-              onClick={() => setChannel(OtpChannel.TELEGRAM)}
+              variant={channel === OTP_CHANNEL.TELEGRAM ? "white" : "outline"}
+              className={channel === OTP_CHANNEL.TELEGRAM ? "bg-[#0088cc] text-white hover:bg-[#0077b5]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}
+              onClick={() => setChannel(OTP_CHANNEL.TELEGRAM)}
               fullWidth
               size="default"
-              withoutShadow={channel !== OtpChannel.TELEGRAM}
+              withoutShadow={channel !== OTP_CHANNEL.TELEGRAM}
               icon={<TelegramIcon size={18} />}
             >
               {t('auth.telegram')}

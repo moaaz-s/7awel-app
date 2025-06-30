@@ -1,6 +1,6 @@
 "use client"
 
-import { useData } from "@/context/DataContext";
+import { useData } from "@/context/DataContext-v2";
 import { QRCodeDisplay } from "@/components/qr-code-display"
 import { CopyButton } from "@/components/copy-button"
 import { PageContainer } from "@/components/layouts/page-container"

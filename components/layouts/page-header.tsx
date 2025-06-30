@@ -50,19 +50,8 @@ export function PageHeader({ title, subtitle, backHref, backAction, backIconStyl
   const height = useTransform(bigOpacity, [0, 0.01, 1], ['0px', '0px', 'auto'])
   const opacity = bigOpacity
 
-  return (
-    <motion.header
-      className={cn(
-        "sticky top-0 z-10 mb-4 transition-colors", 
-        spacing.stack_sm,
-        className
-      )}
-      style={{ 
-        backgroundColor: bgColor,
-        backdropFilter: backdropBlur 
-      }}
-    >
-      <div className="flex items-center">
+  let actionContent = (
+    <div className="flex items-center">
         <div className="flex items-center gap-2 flex-1">
           {(backHref || backAction) && (
             <div>
@@ -92,6 +81,22 @@ export function PageHeader({ title, subtitle, backHref, backAction, backIconStyl
         </div>
         {action && <div className="flex items-center">{action}</div>}
       </div>
+  )
+
+  return (
+    <motion.header
+      className={cn(
+        "sticky top-0 z-10 mb-4 transition-colors", 
+        spacing.stack_sm,
+        className
+      )}
+      style={{ 
+        backgroundColor: bgColor,
+        backdropFilter: backdropBlur 
+      }}
+    >
+      {actionContent}
+
       {(title || subtitle) && (
         <motion.div
           style={{ 

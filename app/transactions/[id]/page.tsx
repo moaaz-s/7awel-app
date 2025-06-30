@@ -5,18 +5,21 @@ import { use } from "react";
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { PenIcon } from "@/components/icons/ui-icons"
-import { useData } from "@/context/DataContext";
+import { useData } from "@/context/DataContext-v2";
+import { getDisplayProps } from "@/utils/transaction-view-ui";
 import { PageContainer } from "@/components/layouts/page-container"
 import { ContentCard } from "@/components/ui/cards/content-card"
-import { DateDisplay } from "@/components/ui/date-display"
+import { DateDisplay } from "@/components/ui/date-display"  
 import { transactionService } from "@/services/transaction-service"
 import type { Transaction } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
 import { toast } from "@/hooks/use-toast"
 import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item";
+import { error as logError } from "@/utils/logger";
+import { ErrorCode } from "@/types/errors";
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { getTransaction, formatDate, formatCurrency } = useData()
+  const { getTransaction, formatDate, formatCurrency, userProfile } = useData()
   const { t, language } = useLanguage()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -35,12 +38,18 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
 
       // If not in context, try to fetch from API
       try {
-        const fetchedTx = await transactionService.getTransaction(id)
-        if (fetchedTx) {
-          setTransaction(fetchedTx)
+        const fetchedTx = await transactionService.getTransactionById(id)
+        if (fetchedTx.error) {
+          logError("fetchedTx error", fetchedTx.error)
+          throw new Error(fetchedTx.errorCode || ErrorCode.TRANSACTION_FETCH_ERROR)
+        }
+
+        if (fetchedTx.data) {
+          setTransaction(fetchedTx.data)
         }
       } catch (error) {
         console.error("Error fetching transaction:", error)
+        // TODO: Go to previous page? or show error and stay? 
       } finally {
         setIsLoading(false)
       }
@@ -78,13 +87,12 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
   }
 
   // Transaction date object for display
-  const transactionDate = new Date(transaction.date)
+  const transactionDate = new Date(transaction.createdAt)
     
   // Format transaction amount with sign and currency symbol
-  const isNegative = transaction.amount < 0
-  // Use Euro currency symbol to match the Revolut screenshot
-  const amount = Math.abs(transaction.amount).toFixed(2)
-  const formattedAmount = isNegative ? `-€${amount}` : `€${amount}`
+  const { direction, amountStr: formattedAmount } = getDisplayProps(transaction, { currentUserId: userProfile?.id });
+  // TODO: Make sure this link has a corresponding page
+  const contactHref = `/contacts/${direction === "outgoing" ? transaction.recipientId ?? "" : direction === "incoming" ? transaction.senderId ?? "" : transaction.name.replace(/\\s/g, "-").toLowerCase()}`;
 
   const transactionHeader = (
     <div className="flex items-start">
@@ -96,9 +104,7 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
         </div>
         {/* Make the contact name clickable - using appropriate ID based on transaction type */}
         <Link 
-          href={`/contacts/${transaction.type === 'send' ? transaction.recipientId : 
-            transaction.type === 'receive' ? transaction.senderId : 
-            transaction.name.replace(/\s/g, '-').toLowerCase()}`} 
+          href={contactHref}
           className="text-base text-primary hover:underline block mb-1"
         >
           {transaction.name}

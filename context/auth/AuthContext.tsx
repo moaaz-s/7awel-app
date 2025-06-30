@@ -1,33 +1,37 @@
-"use client";
-
 /**
  * AuthContext.tsx
  * 
  * Main authentication context provider that integrates specialized hooks
  * for token management, PIN handling, and auth flow coordination.
  */
-import React, { createContext, useReducer, useContext, useEffect, useCallback, ReactNode, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useReducer, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { info, warn, error as logError } from '@/utils/logger';
-import { useLanguage } from '@/context/LanguageContext';
-import { 
-  AuthFlowType, 
+import { info, error as logError } from '@/utils/logger';
+import { useSessionManagement } from '@/context/auth/hooks/useSessionManagement';
+import { SessionService } from '@/services/session-service';
+import { ErrorCode } from '@/types/errors';
 
-} from '@/context/auth/flow/flowsOrchestrator';
-import { apiService, OtpChannel } from '@/services/api-service';
-import { clearSession, getSession } from '@/utils/storage';
-import { AUTH_STEP_TOKEN_ACQUISITION } from '@/context/auth/flow/flowSteps';
+import { 
+  AUTH_STEP_AUTHENTICATED,
+} from '@/context/auth/flow/flowSteps';
 import { AuthStatus } from './auth-state-machine';
 import { 
   AuthContextType, 
-  FlowPayload, 
-  StepData 
+  AuthFlowState,
+  FlowPayload
 } from './auth-types';
 import { initialAuthState, authReducer } from './auth-reducer';
-import { usePinManager } from './hooks/usePinManager';
-import { useFlow } from './flow/useFlow';
-import { httpClient } from '@/services/http-client';
-import { initAndValidate, signIn as serviceSignIn, signOut as serviceLogout } from '@/utils/token-service';
+import { httpClient } from '@/services/httpClients/base';
+import { initAndValidate, signOut as serviceLogout } from '@/utils/token-service';
+import { useLanguage } from '@/context/LanguageContext';
+import { 
+  AuthFlowType, 
+  buildFlowState, 
+  advanceFlow as advanceFlowOrchestration,
+  initiateFlow as initiateFlowOrchestration,
+  FlowOrchestrationResult
+} from '@/context/auth/flow/flowsOrchestrator';
+import { clearPin } from '@/utils/pin-service';
 
 // Create the context with undefined default value
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,69 +41,87 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // ============================================================================
+  // State and Hooks
+  // ============================================================================
   const [state, dispatch] = useReducer(authReducer, initialAuthState);
   const router = useRouter();
   const { t } = useLanguage();
 
   const [isTokenReady, setIsTokenReady] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Initialize hooks with required dependencies (token logic moved to token-service)
-  const pinManager = usePinManager(dispatch, t);
-  const authFlow = useFlow(state, dispatch, t);
+  // Initialize session management hook
+  const { 
+    lockSession, 
+    unlockSession,
+    isIdle,
+    idleTimeRemaining 
+  } = useSessionManagement(state, dispatch);
 
+  // ============================================================================
+  // Auth Status and Token Management
+  // ============================================================================
   // Initialize auth status
   useEffect(() => {
     const init = async () => {
       try {
-        const isValidToken = await initAndValidate();
-        setIsTokenReady(isValidToken);
+        if (authInitialized) return;
+        setAuthInitialized(true);
 
-        if (!isValidToken) {
-          dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Unauthenticated });
-        } else {
-          // Determine PIN & session state
-          const pinExists = await pinManager.isPinSet();
-          const session = await getSession();
-          if (!pinExists) {
-            dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.PinSetupPending });
-          } else if (!session || session.expiresAt <= Date.now()) {
-            // Check PIN lockout state
-            if (await pinManager.isLocked()) {
-              // If we set AuthStatus to Locked, it will trigger the GlobalLockScreen.tsx wrapper component which is not a great UX.
-              dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.RequiresPin });
-            } else {
-              dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.RequiresPin });
-            }
-          } else {
-            dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Authenticated });
+        info('[AuthContext] Initializing interceptors...');
+        // On 401/403, attempt token refresh before logout
+        httpClient.initInterceptors(async () => {
+          const ok = await initAndValidate();
+          setIsTokenReady(ok);
+
+          if (!ok) {
+            logError('[AuthContext] Token expired, logging out', {
+              state,
+              isTokenReady,
+              ok
+            });
+            // Token expired: clear tokens and prompt login
+            await serviceLogout();
+            dispatch({ type: 'LOGOUT' });
           }
+        });
+        
+        info('[AuthContext] Initializing auth...');
+
+        await initAndValidate();
+
+        // eslint-disable-next-line prefer-const
+        let {tokenExists, tokenValid, pinSetFlag} = await buildFlowState();
+
+        info(`[AuthContext] Device has token: ${tokenExists}, token is expired: ${!tokenValid}`);
+
+        if (!tokenExists || !tokenValid) { 
+          info('[AuthContext] setting status to Unauthenticated');
+          dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Unauthenticated });
+          setIsTokenReady(false);
+        } else {
+          info('[AuthContext] Token found, initializing...');
+
+          const authStatus = pinSetFlag ? AuthStatus.PinSetupPending: AuthStatus.RequiresPin;
+          
+          info(`[AuthContext] Setting auth status to: ${authStatus}`);
+
+          dispatch({ type: 'SET_AUTH_STATUS', payload: authStatus });
+          setIsTokenReady(true);
         }
       } catch (err) {
-        logError('AuthContext init error:', err);
+        logError('[AuthContext] init error:', err);
         dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Unauthenticated });
+        setIsTokenReady(false);
       }
     };
     init();
-  }, [router]);
+  }, [router, dispatch, state, isTokenReady, authInitialized]);
 
-  // Soft logout - clears session but preserves PIN & local data
-  const softLogout = useCallback(async () => {
-    info('[AuthContext] Performing soft logout - clearing session only');
-    
-    try {
-      // Clear session data (but not PIN or local data)
-      await clearSession();
-      
-      // Update state to logged out
-      dispatch({ type: 'LOGOUT' });
-      
-      info('[AuthContext] Soft logout completed');
-    } catch (error) {
-      logError('[AuthContext] Error during soft logout:', error);
-      // Even if there's an error, ensure we clear the auth state
-      dispatch({ type: 'LOGOUT' });
-    }
-  }, [dispatch]);
+  // ============================================================================
+  // Session Methods
+  // ============================================================================
 
   /**
    * Hard logout - clears everything including PIN and local data
@@ -109,19 +131,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     info('[AuthContext] Performing hard logout - clearing all data');
     
     try {
-      // Clear stored tokens & terminate remote auth token session
-      await serviceLogout();
       
       // Clear session data
-      await clearSession();
+      await SessionService.voidSession();
+      dispatch({ type: 'CLEAR_SESSION' });
       
-      // Clear all local data (user profile, transactions, etc.)
-      const { getStorageManager } = await import('@/services/storage-manager');
-      const storage = getStorageManager();
-      await storage.clearAll();
+      // TODO: Clear all data stored locally
       
       // Clear PIN
-      await pinManager.clearPin();
+      await clearPin();
+
+      // Clear stored tokens & terminate remote auth token session
+      await serviceLogout();
       
       // Register logout event (for analytics/audit)
       info('[AuthContext] Hard logout completed, all data cleared');
@@ -137,133 +158,149 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [dispatch]);
 
-  useEffect(() => {
-    // On 401/403, attempt token refresh before logout
-    httpClient.initInterceptors(async () => {
-      const ok = await initAndValidate();
-      setIsTokenReady(ok);
-
-      if (!ok) softLogout();
-    });
-  }, [softLogout]);
-
-  const validatePin = useCallback(async (pin: string): Promise<boolean> => {
-    return await pinManager.validatePin(pin);
-  }, [pinManager]);
-
-  const resendPhoneOtp = useCallback(async () => {
-    dispatch({ type: 'CLEAR_ERROR' });
-    if (!state.stepData.phone) {
-      const errorMsg = t("uiErrors.phoneMissing");
-      logError("[AuthContext] Cannot resend phone OTP: Phone number not found in stepData.");
-      dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-      return;
-    }
-    dispatch({ type: 'SET_LOADING', payload: true });
-    info(`[AuthContext] Resending OTP to phone: ${state.stepData.phone}`);
-    try {
-      const channel = state.stepData.channel ?? OtpChannel.SMS;
-      const response = await apiService.sendOtp('phone', state.stepData.phone, channel);
-      if (response?.statusCode !== 200) {
-        const errorMsg = response?.message || t("errors.OTP_RESEND_FAILED");
-        logError("[AuthContext] resendPhoneOtp failed:", response);
-        dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-      } else {
-        info("[AuthContext] Phone OTP resent successfully.");
-        const expires = response.data?.expires;
-        if (expires) {
-          dispatch({ type: 'SET_STEP_DATA', payload: { ...state.stepData, otpExpires: expires } });
-        }
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || t("errors.OTP_RESEND_FAILED");
-      logError("[AuthContext] resendPhoneOtp error:", err);
-      dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.stepData, dispatch, t]);
-
-  const resendEmailOtp = useCallback(async () => {
-    const emailToUse = state.stepData.email;
-    dispatch({ type: 'CLEAR_ERROR' });
-    if (!emailToUse) {
-      const errorMsg = t("uiErrors.missingEmail");
-      logError("[AuthContext] Cannot resend email OTP: Email not found in stepData or params.");
-      dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-      return;
-    }
-    dispatch({ type: 'SET_LOADING', payload: true });
-    info(`[AuthContext] Resending OTP to email: ${emailToUse}`);
-    try {
-      const response = await apiService.sendOtp('email', emailToUse);
-      if (response?.statusCode !== 200) {
-        const errorMsg = response?.message || t("errors.OTP_RESEND_FAILED");
-        logError("[AuthContext] resendEmailOtp failed:", response);
-        dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-      } else {
-        info("[AuthContext] Email OTP resent successfully.");
-        const expires = response.data?.expires;
-        if (expires) {
-          dispatch({ type: 'SET_STEP_DATA', payload: { ...state.stepData, email: emailToUse, emailOtpExpires: expires } });
-        }
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || t("errors.OTP_RESEND_FAILED");
-      logError("[AuthContext] resendEmailOtp error:", err);
-      dispatch({ type: 'SET_FLOW_ERROR', payload: errorMsg });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.stepData.email, dispatch, t]);
+  // ============================================================================
+  // Flow Management
+  // ============================================================================
 
   // Flow management
-  const initiateFlow = useCallback((flowType: AuthFlowType, initialData?: StepData) => {
-    authFlow.initiateFlow(flowType, initialData);
-  }, [authFlow]);
+  const initiateFlow = useCallback((flowType: AuthFlowType, initialData?: Partial<AuthFlowState>) => {
+    info(`[AuthContext] Initiating flow: ${flowType}`);
+    
+    // Check if we're re-entering the same flow - if so, just reset
+    if (state.activeFlow?.type === flowType) {
+      info('[AuthContext] Re-entering same flow, resetting to initial step');
+      dispatch({ type: 'END_FLOW' });
+    }
 
+    
+    // Use orchestration function to initialize flow (now async)
+    const initFlowAsync = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      try {
+        const flowConfig = await initiateFlowOrchestration(flowType, initialData);
+        
+        // Check for initialization errors
+        if (!flowConfig.success) {
+          logError('[AuthContext] Failed to initialize flow:', flowConfig.errorCode);
+          dispatch({ type: 'SET_FLOW_ERROR', payload: 'Failed to initialize flow' });
+          return;
+        }
+        
+        dispatch({
+          type: 'START_FLOW',
+          payload: {
+            type: flowConfig.flowType,
+            initialData: flowConfig.flowState,
+            initialIndex: flowConfig.currentStepIndex
+          }
+        });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+    
+    initFlowAsync();
+  }, [state.activeFlow?.type, dispatch]);
+
+  /**
+   * Advance the authentication flow to the next step
+   * Uses the orchestration function which handles both side effects and pure logic
+   */
   const advanceFlow = useCallback(async (payload: FlowPayload) => {
-    await authFlow.advanceFlow(payload);
-  }, [authFlow]);
+    dispatch({ type: 'CLEAR_ERROR' });
+    info(`[advanceFlow] Advancing flow from step: ${state.currentStep}`, "Payload:", payload);
+    
+    // Set loading state
+    dispatch({ type: 'SET_LOADING', payload: true });
 
-  // Mark PIN-forgot flow: clear PIN; navigation happens in AppInitializer or SignIn page
-  const forgotPin = useCallback(async () => {
-    info('[AuthContext] Initiating PIN reset flow');
-    await pinManager.setPinForgotten();
-  }, [pinManager]);
-
-  // Update status on token acquisition
-  useEffect(() => {
-    async function updateStatus() {
-      const isValidToken = await initAndValidate();
-      setIsTokenReady(isValidToken);
-
-      if (isValidToken) {
+    try {
+      if (!state.currentStep) {
+        throw new Error('[advanceFlow] called while currentStep is null');
+      }
+      
+      // Get current flow steps
+      const flowSteps = state.activeFlow?.steps || [];
+      
+      // Use orchestration function to advance flow (handles both side effects and pure logic)
+      const orchestrationResult: FlowOrchestrationResult = await advanceFlowOrchestration(
+        state.currentStep,
+        state.flowState,
+        payload,
+        flowSteps
+      );
+      
+      // Handle orchestration errors
+      if (!orchestrationResult.success) {
+        const errorMessage = orchestrationResult.errorCode 
+          ? t(`errors.${orchestrationResult.errorCode}`) 
+          : 'An error occurred';
+        throw new Error(errorMessage);
+      }
+      
+      // Update state with orchestration result
+      if (orchestrationResult.flowState) {
+        dispatch({
+          type: 'SET_FLOW_STATE',
+          payload: orchestrationResult.flowState
+        });
+      }
+      
+      // TODO: Check if correct (when session is returned?)
+      // Handle session if returned
+      if (orchestrationResult.session) {
+        dispatch({ type: 'SET_SESSION', payload: orchestrationResult.session });
         dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Authenticated });
       }
+      
+      if (orchestrationResult.nextStep) {
+        // Find the index of the next step in the flow
+        const nextIndex = flowSteps.findIndex(s => s.step === orchestrationResult.nextStep);
+        
+        dispatch({
+          type: 'ADVANCE_STEP',
+          payload: {
+            nextStep: orchestrationResult.nextStep,
+            nextData: orchestrationResult.flowState || state.flowState,
+            nextIndex: nextIndex >= 0 ? nextIndex : 0
+          }
+        });
+        
+        // Check if we've reached the end
+        if (orchestrationResult.nextStep === AUTH_STEP_AUTHENTICATED) {
+          dispatch({ type: 'SET_AUTH_STATUS', payload: AuthStatus.Authenticated });
+        }
+      }
+      
+      info('[AuthContext] Advanced flow', {
+        from: state.currentStep,
+        to: orchestrationResult.nextStep,
+        flowState: orchestrationResult.flowState
+      });
+      
+    } catch (error: any) {
+      logError("[AuthContext] Flow advance error:", error);
+      dispatch({ type: 'SET_FLOW_ERROR', payload: error.message || 'An error occurred' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
+  }, [state, dispatch, t]);
 
-    if (state.currentStep === AUTH_STEP_TOKEN_ACQUISITION) {
-      updateStatus();
-    }
-  }, [state.currentStep, dispatch]);
 
+  // ============================================================================
+  // Context Value
+  // ============================================================================
   const value: AuthContextType = {
     ...state,
     isTokenReady,
-    validatePin,
-    setPin: pinManager.setPin,
-    checkPin: pinManager.checkPin,
-    resetAttempts: pinManager.resetAttempts,
-    resendPhoneOtp,
-    resendEmailOtp,
     initiateFlow,
     advanceFlow,
-    forgotPin,
     // Token actions
-    signIn: serviceSignIn,
-    softLogout,
     hardLogout,
+    lockSession,
+    unlockSession,
+    isIdle,
+    idleTimeRemaining
   };
 
   return (

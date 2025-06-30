@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { loadPlatform } from "@/platform"
-import { useData } from "@/context/DataContext";
+import { useData } from "@/context/DataContext-v2";
 import type { QRData } from "@/types"; // Import QRData type
 import { CopyButton } from "@/components/copy-button"
 import { QRCodeDisplay } from "@/components/qr-code-display"

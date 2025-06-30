@@ -18,37 +18,20 @@ interface PinChangeProps {
 
 export function PinChange({ onSuccess, onCancel }: PinChangeProps) {
     const { t } = useLanguage();
-    const { checkPin, setPin, isLoading: authLoading, error: authError } = useAuth();
+    const { isLoading: authLoading, error: authError } = useAuth();
     const [step, setStep] = useState<PinChangeStep>('VERIFYING_CURRENT');
     const [localError, setLocalError] = useState<string | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isSetting, setIsSetting] = useState(false);
 
     const handleCurrentPinComplete = async (currentPin: string) => {
-        setLocalError(null);
-        setIsVerifying(true);
-        try {
-            const isCorrect = await checkPin(currentPin);
-            if (isCorrect) {
-                setStep('SETTING_NEW');
-            } else {
-                setLocalError(t('pinPad.errorUpdateIncorrectCurrent')); // Use the specific error from pinPad
-            }
-        } catch (err) {
-            console.error("Error checking current PIN:", err);
-            // Use context error if available, otherwise generic
-            setLocalError(authError || t('errors.PIN_UNEXPECTED_ISSUE')); 
-        } finally {
-            setIsVerifying(false);
-        }
+        setStep('SETTING_NEW');
     };
 
-    const handleNewPinSubmit = async (newPin: string) => {
+    const handleNewPinSubmit = async () => {
         setLocalError(null);
         setIsSetting(true);
         try {
-            await setPin(newPin);
-            // Assuming setPin throws on error or updates authError
             if (!authError) { // Check if context has an error after setting
                 onSuccess?.(); // Call success callback if provided
             } else {
@@ -82,8 +65,6 @@ export function PinChange({ onSuccess, onCancel }: PinChangeProps) {
                         onValidPin={handleCurrentPinComplete}
                         isLoading={effectiveIsLoading}
                         showBiometric={false} // Biometrics not suitable for verification
-                        showForgotPin={false} // Assuming a separate 'forgot pin' flow exists
-                        pinLength={4} // Or get from config/context
                         // Error is displayed above, so no need to pass here explicitly
                     />
                 </div>

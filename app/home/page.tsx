@@ -6,18 +6,19 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import { TransactionCard } from "@/components/ui/transaction-card"
 import { patterns, spacing } from "@/components/ui-config"
 import { useLanguage } from "@/context/LanguageContext"
 import { SendIcon, ReceiveIcon, ScanIcon, HistoryIcon, CashOutIcon } from "@/components/icons"
 import { PromotionalSlider } from "@/components/ui/promotional-slider"
 import { useEffect } from "react"
-import { apiService } from "@/services/api-service"
 import { Promotion } from "@/types"
 import { ContentCard } from "@/components/ui/cards/content-card"
 import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item"
 import { BottomNavigation } from "@/components/navigation/BottomNavigation"
+import { promotionService } from "@/services/promotion-service"
+
 
 function ActionButton({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
@@ -49,7 +50,7 @@ export default function HomePage() {
 
   const recentTransactions = transactions.slice(0, 3).map((tx) => ({
     ...tx,
-    date: formatDate(tx.date),
+    date: formatDate(tx.createdAt),
   }))
 
   // Format currency with smaller cents
@@ -70,7 +71,7 @@ export default function HomePage() {
   // Fetch promotions when language changes
   useEffect(() => {
     const fetchPromotions = async () => {
-      const response = await apiService.getPromotions(language)
+      const response = await promotionService.getPromotions(language)
       if (response.data) {
         setPromotions(response.data)
       }

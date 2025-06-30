@@ -24,6 +24,7 @@ interface CashOutState {
 
 /**
  * Custom hook for managing cash out flow
+ * TODO: TBD
  */
 export function useCashOutFlow() {
   const router = useRouter()

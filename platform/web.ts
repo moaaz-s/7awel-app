@@ -3,6 +3,7 @@ import { loadPlatform } from '@/platform';
 import { info, warn, error as logError } from "@/utils/logger";
 import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
 import { BaseLocalDatabaseManager } from './local-db/local-db-common'
+import { DB_NAME, DB_VERSION } from '@/constants/db';
 
 // Platform type export
 export const platformType = "web" as const
@@ -22,9 +23,6 @@ export async function removeSecureStorageItem(key: string): Promise<void> {
 }
 
 // Local database implementation for web using IndexedDB
-const DB_NAME = '7awel-local-db';
-const DB_VERSION = 1;
-
 class IndexedDBManager extends BaseLocalDatabaseManager {
   private db: IDBDatabase | null = null;
   
@@ -76,6 +74,11 @@ class IndexedDBManager extends BaseLocalDatabaseManager {
           const failedStore = db.createObjectStore('failedSyncs', { keyPath: 'id' });
           failedStore.createIndex('storeName', 'storeName', { unique: false });
           failedStore.createIndex('movedToFailedAt', 'movedToFailedAt', { unique: false });
+        }
+        
+        if (!db.objectStoreNames.contains('balance')) {
+          const balanceStore = db.createObjectStore('balance', { keyPath: 'id' });
+          balanceStore.createIndex('symbol', 'symbol', { unique: false });
         }
       };
     });
@@ -283,18 +286,65 @@ export async function authenticateBiometric() {
   return false
 }
 
-export async function requestContactsPermission() {
-  return false
+// ---------------------------------------------------------------------------
+// Contacts access (Web)
+// ---------------------------------------------------------------------------
+
+/**
+ * Request permission to access contacts using the Web Contacts Picker API.
+ * Returns true if the API is available and the user selects at least one contact.
+ * Falls back to false if not supported or the user denies access.
+ */
+export async function requestContactsPermission(): Promise<boolean> {
+  // Check if the Contacts Picker API is supported
+  const anyNavigator: any = navigator as any;
+  if (!('contacts' in anyNavigator) || typeof anyNavigator.contacts.select !== 'function') {
+    warn('[platform/web] Contacts Picker API not supported by this browser');
+    return false;
+  }
+
+  try {
+    // Trigger the permission prompt by attempting to select a dummy contact.
+    // We request a single contact so the user is not overwhelmed.
+    await anyNavigator.contacts.select(['name'], { multiple: false });
+    return true;
+  } catch (err) {
+    // If the user cancels or denies permission, an exception is thrown.
+    warn('[platform/web] Contacts permission denied or cancelled:', err);
+    return false;
+  }
 }
 
-export async function getContacts() {
-  return []
+/**
+ * Retrieve contacts using the Web Contacts Picker API.
+ * The function requests `name` and `tel` fields and returns an array of
+ * `{ name: string; phoneNumbers: string[] }` objects.
+ * If the API is unsupported or the user cancels, an empty array is returned.
+ */
+export async function getContacts(): Promise<Array<{ name: string; phoneNumbers: string[] }>> {
+  const anyNavigator: any = navigator as any;
+  if (!('contacts' in anyNavigator) || typeof anyNavigator.contacts.select !== 'function') {
+    return [];
+  }
+
+  try {
+    const contacts = await anyNavigator.contacts.select(['name', 'tel'], { multiple: true });
+    return (contacts || []).map((c: any) => ({
+      name: (Array.isArray(c.name) ? c.name[0] : c.name) || 'Unknown',
+      phoneNumbers: Array.isArray(c.tel) ? c.tel.filter(Boolean) : (c.tel ? [c.tel] : []),
+    }));
+  } catch (err) {
+    // User cancelled the picker or another error occurred
+    warn('[platform/web] Contact selection cancelled or failed:', err);
+    return [];
+  }
 }
 
 export async function takePhoto() {
   return null
 }
 
+// ... (rest of the code remains the same)
 export async function addDeepLinkListener() {
   // Return a noop disposer
   return () => {}

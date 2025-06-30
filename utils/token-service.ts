@@ -5,8 +5,9 @@ import { getItem, setItem, removeItem } from "@/utils/secure-storage";
 import { AUTH_TOKEN, REFRESH_TOKEN } from "@/constants/storage-keys";
 import { isTokenExpired } from "@/utils/token-utils";
 import { authService } from "@/services/auth-service";
-import { httpClient } from "@/services/http-client";
+
 import { info, error as logError } from "./logger";
+import { privateHttpClient } from "@/services/httpClients/private";
 
 /**************************************************/
 /******************* primitives *******************/
@@ -16,7 +17,7 @@ import { info, error as logError } from "./logger";
  * Get the stored access token.
  * @returns token or null if not set
  */
-async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(): Promise<string | null> {
   return await getItem(AUTH_TOKEN);
 }
 
@@ -72,49 +73,64 @@ async function setTokens(authToken: string, refreshToken: string): Promise<void>
 
   info('[token-service] Set tokens');
 
-  // httpsClient sets tokens automatically on acquisition & refresh.
+  // Propagate to HTTP client
+  if (privateHttpClient?.setToken) {
+    privateHttpClient.setToken(authToken);
+  }
 }
 
 /**
  * Clear both auth and refresh tokens.
  */
 async function clearTokens(): Promise<void> {
+  if (privateHttpClient?.clearToken) {
+    privateHttpClient.clearToken();
+  }
   await removeAuthToken();
   await removeRefreshToken();
-
-  httpClient.clearToken();
 }
 
 async function isTokenValid(authToken: string): Promise<boolean> {
   try {
+    info('[token-service] Checking token validity');
     if (!authToken) return false;
 
-    const valid = !isTokenExpired(authToken);
-    if (!valid) {
-      info('[token-service] Token invalid/expired');
-      await clearTokens();
+    info('[token-service] Token found');
+    const isExpired = isTokenExpired(authToken);
+
+    // Don't clear tokens here - let the refresh flow handle it
+    if (isExpired) {
+      info('[token-service] Token expired, will be handled by the refresh flow');
+      throw new Error('Token expired');
     }
 
-    return valid;
+    return true;
   } catch (e) {
-    logError("[token-service] validation failed:", e);
+    info("[token-service] validation failed:", e);
     return false;
   }
 }
 
 async function refreshToken(): Promise<boolean> {
   try {
+    info('[token-service] Refreshing token');
     const refreshToken = await getRefreshToken();
-    if (!refreshToken) throw new Error("Refresh token not found");
+    if (!refreshToken) {
+      info('[token-service] No refresh token found, clearing all tokens');
+      await clearTokens();
+      return false;
+    }
     
     const { data, error, errorCode } = await authService.refreshToken(refreshToken);
     if (error) throw error;
     if (!data?.accessToken || !data?.refreshToken) throw new Error("Missing access or refresh token");
     
+    info('[token-service] Token refreshed');
     await setTokens(data.accessToken, data.refreshToken);
     return true;
   } catch (e) {
     logError("[token-service] refresh failed:", e);
+    await clearTokens();
     return false;
   }
 }
@@ -122,13 +138,44 @@ async function refreshToken(): Promise<boolean> {
 /**************************************************/
 /******************** Interface *******************/
 /**************************************************/
-export async function setHttpClientToken(){
-  info('[token-service] Setting http client token');
+
+/**
+ * Check if we have a token (regardless of expiration).
+ * Returns: { exists: boolean, isExpired: boolean }
+ */
+export async function checkTokenStatus(): Promise<{ exists: boolean; isExpired: boolean }> {
   const authToken = await getAuthToken();
-  if (!authToken) return
+  if (!authToken) {
+    return { exists: false, isExpired: true };
+  }
   
-  info('[token-service] Token found');
-  httpClient.setToken(authToken);
+  try {
+    const expired = isTokenExpired(authToken);
+    return { exists: true, isExpired: expired };
+  } catch (e) {
+    return { exists: false, isExpired: true };
+  }
+}
+
+/**
+ * Initialize and validate tokens, attempting refresh if needed.
+ * Use this when you need a valid token for API calls.
+ */
+export async function initAndValidate(): Promise<boolean> {
+  info('[token-service] Initializing and validating tokens');
+  const authToken = await getAuthToken();
+  if (!authToken) return false;
+  
+  // Check if current token is valid
+  if (await isTokenValid(authToken)) {
+    if (privateHttpClient?.setToken) privateHttpClient.setToken(authToken);
+    return true;
+  }
+  if (await refreshToken()) {
+    return true;
+  }
+
+  return false;
 }
 
 export async function acquireTokens(phone: string, email: string): Promise<boolean> {
@@ -141,25 +188,6 @@ export async function acquireTokens(phone: string, email: string): Promise<boole
 
     await setTokens(data.accessToken, data.refreshToken);
     return await isTokenValid(data.accessToken);
-  } catch (e) {
-    logError("[token-service] acquire failed:", e);
-    return false;
-  }
-}
-
-export async function initAndValidate(): Promise<boolean> {
-  const authToken = await getAuthToken();
-  if (!authToken) return false;
-  if (await isTokenValid(authToken)) return true;
-  return await refreshToken();
-}
-
-export async function signIn(phone: string, email: string): Promise<boolean> {
-  try {
-    const tokenAcquired = await acquireTokens(phone, email);
-    if (!tokenAcquired) throw new Error("Token acquisition failed");
-
-    return true
   } catch (e) {
     logError("[token-service] acquire failed:", e);
     return false;

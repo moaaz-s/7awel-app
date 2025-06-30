@@ -1,61 +1,26 @@
 // Standard module imports
+import type { Contact as ContactSchema, UserProfile as UserSchema, Transaction as TransactionSchema, AssetBalance as AssetBalanceSchema, Promotion as PromotionSchema, LogEvent as LogEventSchema } from "@/platform/validators/schemas-zod";
 import { ErrorCode } from './errors';
 
-// User types
-export type User = {
-  id: string
-  firstName: string
-  lastName: string
-  email?: string
-  phone: string
-  avatar?: string
-  address?: string
-  dob?: string
-  country?: string
-  gender?: string
-  createdAt?: string // ISO date
-  lastLogin?: string // ISO date
-  kycLevel?: string
-}
+// Domain model aliases (canonical types come from Zod schemas)
+export type User = UserSchema;
 
-export type TransactionType = "send" | "receive" | "payment" | "cash_out"
-export type TransactionStatus = "pending" | "completed" | "failed"
 
-// Promotion displayed in home page slider
-export interface Promotion {
-  id: string
-  title: string
-  description: string
-  imageUrl?: string
-  linkUrl: string
-  backgroundColor?: string
-}
+export type Contact = ContactSchema;
 
-export type Transaction = {
-  id: string
-  name: string
-  amount: number
-  date: string
-  type: TransactionType
-  status: TransactionStatus
-  reference?: string
-  note?: string
-  recipientId?: string
-  senderId?: string
-  assetSymbol?: string
-  network?: string
-  fee?: number
-  txHash?: string
-}
+export type Transaction = TransactionSchema;
 
-export type Contact = {
-  id: string
-  name: string
-  phone: string
-  email?: string
-  initial: string
-}
+export type AssetBalance = AssetBalanceSchema;
 
+export type Promotion = PromotionSchema;
+export type LogEvent = LogEventSchema;
+
+// Legacy enums kept (can be removed if covered by schema enums)
+export type TransactionType = "transfer" | "deposit" | "withdraw";
+export type TransactionStatus = "pending" | "completed" | "failed";
+
+// Deprecated Promotion interface removed; canonicalised via schema alias above
+// QRData
 export type QRData = {
   userId: string
   amount?: number
@@ -71,6 +36,11 @@ export type FlowState = {
 export interface Paginated<T> {
   items: T[]
   nextCursor?: string | null
+}
+
+// Same as Paginated but includes an optional `total` count returned by some endpoints
+export interface PaginatedWithTotal<T> extends Paginated<T> {
+  total?: number;
 }
 
 export interface PaginationRequest {
@@ -127,12 +97,7 @@ export interface ApiResponse<T> {
 }
 
 // New multi-asset balance (P2). Deprecated WalletBalance will map to first asset for now.
-export type AssetBalance = {
-  symbol: string
-  total: number
-  available: number
-  pending: number
-}
+
 
 /**
  * @deprecated Use AssetBalance[] via getBalances()
@@ -140,6 +105,15 @@ export type AssetBalance = {
 export type WalletBalance = AssetBalance
 
 // ----- Auth & OTP related (legacy) -----
+export interface CheckAvailabilityRequest {
+  medium: "phone" | "email"
+  value: string
+}
+
+export interface CheckAvailabilityResponse {
+  available: boolean
+}
+
 export interface OtpInitiationResponse {
   requiresOtp: boolean
   /** Optional OTP expiry timestamp (unix ms) returned by server */
@@ -180,4 +154,27 @@ export interface CashOutResponse {
   fee: number
   method: string
   date: string
+}
+
+// ----- Transaction Request Payloads -----
+export interface SendMoneyRequest {
+  contactId: string
+  amount: number
+  note?: string
+  assetSymbol?: string
+}
+
+export interface RequestMoneyPayload {
+  recipientId: string
+  amount: number
+  note?: string
+  assetSymbol?: string
+}
+
+export interface CashOutRequest {
+  fromAccount: string
+  toAccount: string
+  amount: number
+  currency: string
+  method: string
 }

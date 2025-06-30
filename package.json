@@ -85,6 +85,7 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
+    "@edge-runtime/primitives": "^6.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/glob": "^8.1.0",
@@ -93,14 +94,21 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "@vitejs/plugin-react": "^4.6.0",
+    "@vitest/coverage-v8": "^1.5.1",
+    "better-sqlite3": "^12.1.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.2.4",
+    "fake-indexeddb": "^6.0.1",
     "glob": "^11.0.2",
+    "indexeddbshim": "^16.0.0",
     "jsdom": "^26.1.0",
+    "next-test-api-route-handler": "^4.0.16",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
     "typescript": "^5",
-    "vitest": "^1.5.1"
+    "vitest": "^1.5.1",
+    "vitest-github-actions-reporter": "^0.11.1"
   }
 }

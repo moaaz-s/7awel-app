@@ -1,7 +1,7 @@
 "use client"
 
 import { AmountInput } from "@/components/amount-input"
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import { PageContainer } from "@/components/layouts/page-container"
 import { CardContainer } from "@/components/ui/card-container"
 import { spacing, typography } from "@/components/ui-config"

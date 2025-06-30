@@ -62,7 +62,7 @@ export function SendTransactionProvider({ children }: { children: React.ReactNod
     if (!state.recipient) return
     const result = await sendMoney(state.recipient, Number.parseFloat(state.amount), state.note)
     if (result.success) {
-      const reference = result.transaction?.reference || transactionService.generateReference()
+      const reference = result.transaction?.reference
       const date = transactionService.formatDate(new Date())
       setDetails({ amount: state.amount, recipient: state.recipient.name, date, reference, note: state.note })
       router.push("/send/success")

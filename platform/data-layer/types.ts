@@ -36,3 +36,9 @@ export interface RepositoryOptions {
   cacheEnabled?: boolean;
   cacheTTLMs?: number;
 }
+
+export interface LogEvent {
+  eventType: string;
+  payload: any;
+  timestamp: number;
+}

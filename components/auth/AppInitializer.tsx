@@ -1,98 +1,164 @@
 "use client";
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { info } from '@/utils/logger';
-import { getSession, isPinForgotten } from '@/utils/storage';
+import { isPinForgotten } from '@/utils/storage';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine'; 
 import { usePathname } from 'next/navigation';
 import SplashScreen from './SplashScreen'; 
 
 // ---- Route constants ----
-const PUBLIC_AUTH_ROUTES = ['/', '/sign-in', '/sign-up'];
+const SIGN_IN_ROUTE = '/sign-in';
+const SIGN_UP_ROUTE = '/sign-up';
 const HOME_ROUTE = '/home';
 
+const PUBLIC_AUTH_ROUTES = ['/', SIGN_IN_ROUTE, SIGN_UP_ROUTE];
+
+
+// Route configuration for different auth states
+const ROUTE_CONFIG: Partial<Record<AuthStatus, {
+  redirectAll?: string; // Regardless of current route (public or private): Redirect to this route
+  redirectPublic?: string | false; // When user is on public route: redirect to this route, false to block access
+  redirectPrivate?: string; // When user is on private route: redirect to this route
+  blockedRoutes?: string[]; // Block access to these routes
+}>> = {
+  [AuthStatus.Unauthenticated]: {
+    redirectPublic: false,
+    redirectPrivate: '/'
+  },
+  [AuthStatus.PinSetupPending]: {
+    redirectAll: SIGN_IN_ROUTE
+  },
+  [AuthStatus.RequiresPin]: {
+    redirectAll: SIGN_IN_ROUTE
+  },
+  [AuthStatus.Authenticated]: {
+    redirectPublic: HOME_ROUTE,
+    blockedRoutes: [SIGN_UP_ROUTE]
+  },
+  [AuthStatus.Pending]: {},
+  [AuthStatus.Initial]: {},
+};
+
+// Auth states that should show loading
+const LOADING_STATES = [AuthStatus.Pending, AuthStatus.Initial];
+
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
-  // Destructure currentStep as well
-  const { authStatus, isTokenReady, lock } = useAuth();
+  const { authStatus, isTokenReady } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  
+  // All hooks must be declared at the top, before any conditional logic
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // Memoize route type check
+  const isPublicRoute = useMemo(() => {
+    if (!pathname) return false;
+    return PUBLIC_AUTH_ROUTES.some(route => 
+      route === '/' ? pathname === '/' : pathname.startsWith(route)
+    );
+  }, [pathname]);
 
-
-  const computeRedirect = useCallback((): string | null => {
-    if (!pathname || authStatus === AuthStatus.Pending) return null;
-
-    const isPublicRoute = pathname === '/' || PUBLIC_AUTH_ROUTES.some((r) => r !== '/' && pathname.startsWith(r));
-
-    // --- AuthStatus based routing ---
-    if (authStatus === AuthStatus.Authenticated) {
-      if (isPublicRoute) return HOME_ROUTE;
+  // Compute redirect target based on auth state and current route
+  const computeRedirect = useCallback(async (): Promise<string | null> => {
+    // Skip computation if no pathname or in loading state
+    if (!pathname || LOADING_STATES.includes(authStatus)) {
       return null;
     }
 
-    if (authStatus === AuthStatus.Unauthenticated) {
-      return isPublicRoute ? null : '/';
+    // Priority 1: Handle PIN forgotten state
+    if (await isPinForgotten() && pathname !== SIGN_IN_ROUTE) {
+      info('[AppInitializer] PIN forgotten, redirecting to sign-in');
+      return SIGN_IN_ROUTE;
     }
 
-    if (
-      authStatus === AuthStatus.PinSetupPending ||
-      authStatus === AuthStatus.RequiresPin
-    ) {
-      return '/sign-in';
+    // Priority 2: Use route configuration based on auth status
+    const config = ROUTE_CONFIG[authStatus];
+    if (!config) return null;
+
+    // Handle redirect all cases
+    if (config.redirectAll) {
+      return pathname === config.redirectAll ? null : config.redirectAll;
+    }
+
+    // Handle blocked routes (e.g., authenticated users shouldn't access sign-up)
+    if (config.blockedRoutes?.includes(pathname)) {
+      info(`[AppInitializer] Blocking access to ${pathname} for ${authStatus} state`);
+      return HOME_ROUTE;
+    }
+
+    // Handle public/private route redirects
+    if (isPublicRoute && config.redirectPublic) {
+      return config.redirectPublic;
+    }
+    
+    if (!isPublicRoute && config.redirectPrivate) {
+      return config.redirectPrivate;
     }
 
     return null;
-  }, [authStatus, pathname]);
+  }, [authStatus, pathname, isPublicRoute]);
 
+  // Main redirect effect
   useEffect(() => {
-    const target = computeRedirect();
-    if (target && pathname !== target) {
-      console.log(`[AppInitializer] Redirecting from ${pathname} to ${target}`);
-      router.replace(target);
-    }
+    let cancelled = false;
+
+    const performRedirect = async () => {
+      const target = await computeRedirect();
+      
+      if (!cancelled && target && pathname !== target) {
+        info(`[AppInitializer] Redirecting: ${pathname} → ${target}`);
+        router.replace(target);
+      }
+    };
+
+    performRedirect();
+
+    // Cleanup function to prevent redirects after unmount
+    return () => {
+      cancelled = true;
+    };
   }, [computeRedirect, pathname, router]);
 
-  // Redirect to sign-in if a PIN reset was initiated
-  // TODO: Do we really ever set authStatus to AuthStatus.Pending
+  // Handle special case: token becomes ready for unauthenticated user
   useEffect(() => {
-    (async () => {
-      if (authStatus !== AuthStatus.Pending && await isPinForgotten() && pathname !== '/sign-in') {
-        info('[AppInitializer] Detected PIN_FORGOT flag, redirecting to /sign-in');
-        router.replace('/sign-in');
-      }
-    })();
-  }, [authStatus, pathname, router]);
-
-  // Clear expired local session on init
-  // TODO: Do we really need this, if so we have to refactor the session management.
-  useEffect(() => {
-    (async () => {
-      try {
-        const session = await getSession();
-        if (session && session.expiresAt <= Date.now()) {
-          info('[AppInitializer] Session expired, locking app');
-          await lock();
-        }
-      } catch (err) {
-        console.error('[AppInitializer] Error checking session expiry:', err);
-      }
-    })();
-  }, [lock]);
-
-  // Redirect to sign-in if token becomes valid for unauthenticated user
-  useEffect(() => {
-    if (isTokenReady && authStatus === AuthStatus.Unauthenticated && pathname !== '/sign-in') {
-      info('[AppInitializer] Token valid, redirecting to /sign-in');
-      router.replace('/sign-in');
+    if (isTokenReady && 
+        authStatus === AuthStatus.Unauthenticated && 
+        pathname !== SIGN_IN_ROUTE) {
+      info('[AppInitializer] Token ready, redirecting to sign-in');
+      router.replace(SIGN_IN_ROUTE);
     }
   }, [isTokenReady, authStatus, pathname, router]);
 
-  // Decide render: while pending OR redirecting we show SplashScreen
-  const redirectTarget = computeRedirect();
+  // Determine if we should show loading screen
+  const shouldShowLoading = useMemo(() => {
+    return LOADING_STATES.includes(authStatus);
+  }, [authStatus]);
 
-  if (authStatus === AuthStatus.Pending || (redirectTarget && pathname !== redirectTarget)) {
+  // Check for redirects and update isRedirecting state
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkRedirect = async () => {
+      const target = await computeRedirect();
+      if (!cancelled && target && pathname !== target) {
+        setIsRedirecting(true);
+      } else if (!cancelled) {
+        setIsRedirecting(false);
+      }
+    };
+
+    checkRedirect();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [computeRedirect, pathname]);
+
+  // Show loading screen if auth is pending or if we're redirecting
+  if (shouldShowLoading || isRedirecting) {
     return <SplashScreen />;
   }
 

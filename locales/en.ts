@@ -133,6 +133,10 @@ export const en = {
     emailEntrySubtitle: "We'll send a verification link to this email",
     initializing: "Initializing...",
     loading: "Loading...",
+    idle: {
+      warningTitle: "Session Expiring Soon",
+      warningDescription: "Your session will expire in 30 seconds due to inactivity",
+    },
   },
   logout: {
     confirmTitle: "Logout Confirmation",
@@ -428,6 +432,7 @@ export const en = {
   },
   errors: {
     // Error codes - General
+    UNKOWN_ERROR_TITLE: "Sorry for the inconvenience",
     UNKNOWN_ERROR: "An unknown error occurred. Please try again.",
     NETWORK_ERROR: "Network connection error. Please check your internet connection.",
     SERVER_ERROR: "Server error. Please try again later.",
@@ -457,9 +462,16 @@ export const en = {
     PIN_UNEXPECTED_ISSUE: "Unexpected issue with PIN. Please try again.",
     PIN_SET_FAILED: "Failed to set PIN. Please try again.",
     
-    // Email verification errors
+    // Error codes - Email
     EMAIL_ALREADY_REGISTERED: "This email is already registered.",
     EMAIL_OTP_VERIFICATION_FAILED: "Email OTP verification failed.",
+
+    // Error codes - API/User
+    USER_NOT_FOUND: "User not found.",
+    USER_FETCH_FAILED: "Failed to fetch user data.",
+    USER_UPDATE_FAILED: "Failed to update user data.",
+    USER_UPDATE_MISSING_INFORMATION: "Missing required information.",
+    USER_CANNOT_UPDATE_EMAIL_PHONE: "User cannot update email or phone.",
 
     // AUTH
     AUTH_INIT_FAILED: "Failed to initialize authentication flow.",
@@ -486,6 +498,16 @@ export const en = {
     VALIDATION_DESCRIPTION_TOO_LONG: "Description is too long.",
     VALIDATION_DATETIME_INVALID: "Invalid datetime format.",
     VALIDATION_ENTITY_REQUIRED: "Entity is required.",
+
+    // Error codes - Transactions
+    TRANSACTION_FAILED: "Transaction failed. Please try again later.",
+    INSUFFICIENT_FUNDS: "Insufficient funds. Please enter a smaller amount.",
+    INVALID_AMOUNT: "Please enter a valid amount.",
+    INVALID_RECIPIENT: "Invalid recipient. Please select a valid contact.",
+    INVALID_METHOD: "Invalid method. Please select a valid cash out method.",
+    TRANSACTION_NOT_FOUND: "Transaction not found.",
+    TRANSACTION_LIST_FAILED: "Failed to load transactions.",
+    CASH_OUT_FAILED: "Cash out failed. Please try again later.",
   },
   pinPad: {
     keypadNumberLabel: 'Number {num}',

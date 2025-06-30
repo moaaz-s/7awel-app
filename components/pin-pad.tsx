@@ -7,33 +7,45 @@ import { KeypadButton } from "@/components/ui/keypad-button"
 import { useLanguage } from "@/context/LanguageContext"
 import { FingerprintIcon, BackspaceIcon, ArrowRightIcon } from "@/components/icons"
 import { isLocked, getLockUntil, validatePin, clearLockout } from '@/utils/pin-service';
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import { Avatar } from "./ui/avatar"
+import { AuthConstants } from "@/constants/auth-constants"
+import { cn } from "@/lib/utils"
 
 interface PinPadProps {
   welcome_message?: string
   onValidPin: (pin: string) => void
   showBiometric?: boolean
-  showForgotPin?: boolean
+  
   isLoading?: boolean
   error?: string | null
-  onForgotPin?: () => void
-  pinLength?: number
-  alwaysValid?: boolean // For PIN setup / we don't want to check for validity
+
+  // For PIN setup / we don't want to check for validity
+  alwaysValid?: boolean 
+
+  // Secondary action
+  onAction?: () => void
+  showAction?: boolean
+  actionLabel?: string
 }
 
 export function PinPad({
   welcome_message,
   onValidPin,
   showBiometric = true,
-  showForgotPin = true,
   isLoading = false,
   error = null,
-  onForgotPin,
-  pinLength = 4,
+
   // Useful for PIN setting.
-  alwaysValid = false
+  alwaysValid = false,
+
+  onAction,
+  showAction = false,
+  actionLabel
 }: PinPadProps) {
+  const pinLength = AuthConstants.PIN_LENGTH;
+
+
   const { t, isRTL } = useLanguage()
   const { available: bioAvailable, authenticate } = useBiometrics()
   const [pin, setPin] = useState<string[]>([])
@@ -46,9 +58,10 @@ export function PinPad({
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
+  const [canShowAction] = useState(showAction && onAction && actionLabel)
 
   const { user } = useData();
-
+  
   // Format milliseconds to mm:ss
   function formatRemaining(ms: number) {
     const total = Math.ceil(ms / 1000);
@@ -241,9 +254,13 @@ export function PinPad({
 
   return (
     // dir=ltr is intentional since the numbers are in english regardless of the language
-    <div className="flex-1 flex flex-col items-center justify-between w-full max-w-md mx-auto min-h-[50vh]" dir="ltr">
+    <div className={cn(
+      "flex-1 flex flex-col items-center",
+      welcome_message && user? "justify-between": "justify-end",
+      "w-full max-w-md mx-auto min-h-[50vh]"
+    )} dir="ltr">
       {welcome_message && user && (
-        <div className="flex flex-col items-center space-y-4 mt-8 p-8 w-full" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex flex-col items-center space-y-4 p-4 w-full" dir={isRTL ? "rtl" : "ltr"}>
           <Avatar 
             size="lg" 
             border 
@@ -265,7 +282,7 @@ export function PinPad({
       )}
       {!locked && error && <p className="text-center text-sm text-destructive mb-6" aria-live="assertive">{error}</p>}
       {!locked && (!showBiometricButton || bioFailed) && (
-        <>
+        <div className="flex flex-col items-center">
           <div className={`flex justify-center gap-5 py-12 ${shake ? 'animate-pin-bins-shake' : ''}`} aria-live="polite" aria-atomic="true">
             {renderPinDots()}
             <span className="sr-only">
@@ -274,7 +291,7 @@ export function PinPad({
                 : t('pinPad.enterDigits', { count: pinLength.toString() })}
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-y-8 gap-x-8 mb-8" role="group" aria-label="PIN keypad">
+          <div className="grid grid-cols-3 gap-y-8 gap-x-8" role="group" aria-label="PIN keypad">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
               <div className="flex items-center justify-center" key={num}>
                 <KeypadButton
@@ -346,19 +363,20 @@ export function PinPad({
           </div>
 
           {/* Forgot PIN Button - Show only if enabled and biometric didn't handle it */}
-          {showForgotPin && onForgotPin && (
-            <Button 
-              variant="link"
-              className="mt-6 text-sm mx-auto block text-primary font-medium"
-              onClick={onForgotPin}
-              disabled={isLoading}
-              shadow={"none"}
-            >
-              {t('pinPad.forgotPinLink')}
-            </Button>
-          )}
+          <Button 
+            variant="link"
+            className={cn(
+              "text-sm mx-auto block text-primary font-medium",
+              !canShowAction && "invisible"
+            )}
+            onClick={onAction || undefined}
+            disabled={!canShowAction || isLoading}
+            shadow={"none"}
+          >
+            {actionLabel}
+          </Button>
 
-        </>
+        </div>
       )}
     </div>
   )

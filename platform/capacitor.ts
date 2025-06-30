@@ -5,6 +5,7 @@ import { Preferences } from '@capacitor/preferences';
 import { info, warn, error as logError } from "@/utils/logger";
 import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
 import { BaseLocalDatabaseManager, ContactHelpers, ProfileHelpers, TransactionHelpers, SyncHelpers } from './local-db/local-db-common'
+import { DB_NAME, DB_VERSION } from '@/constants/db';
 
 // Platform type export
 export const platformType = "capacitor" as const
@@ -47,7 +48,7 @@ class SQLiteManager extends BaseLocalDatabaseManager {
       const sqlite = new SQLiteConnection(CapacitorSQLite);
       
       // Create and open database
-      this.db = await sqlite.createConnection('7awel-local-db', false, 'no-encryption', 1, false);
+      this.db = await sqlite.createConnection(DB_NAME, false, 'no-encryption', DB_VERSION, false);
       await this.db.open();
       
       // Create tables

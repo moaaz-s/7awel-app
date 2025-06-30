@@ -5,11 +5,16 @@
  * This helps with maintainability by ensuring type consistency across the auth system.
  */
 import { AuthStep } from '@/context/auth/flow/flowSteps';
-import { AuthFlowType, FlowStep, FlowCtx } from '@/context/auth/flow/flowsOrchestrator';
-import { OtpChannel } from '@/services/api-service';
+import { AuthFlowType, FlowStep } from '@/context/auth/flow/flowsOrchestrator';
 import { AuthStatus } from './auth-state-machine';
 import { ErrorCode } from '@/types/errors';
+import { User } from '@/types';
 
+export enum OTP_CHANNEL {
+  SMS = "sms",
+  WHATSAPP = "whatsapp",
+  TELEGRAM = "telegram"
+}
 // ---------------- Session Types ----------------
 
 /**
@@ -59,35 +64,39 @@ export interface AuthResponse {
 }
 
 /**
- * Data shared between authentication steps
+ * Migrate from old StepData to new AuthFlowState
  */
-export interface StepData {
-  /** Full phone number including country code */
+export interface AuthFlowState {
+  // ===== Input Data (from user) =====
   phone?: string;
-  /** Country dialing code, e.g. "+1" */
   countryCode?: string;
-  /** National phone number without country code, e.g. "5551234567" */
   phoneNumber?: string;
-  channel?: OtpChannel;
   email?: string;
-  /** Whether the user has successfully entered their PIN this session */
-  pinVerified?: boolean;
-  /** Whether the user has set up a PIN */
-  pinSet?: boolean;
-  emailVerified?: boolean;
-  phoneValidated?: boolean;
-  registrationComplete?: boolean;
-  firstName?: string;
-  lastName?: string;
-  address?: string;
-  country?: string;
-  dob?: string;
-  gender?: string;
-  emailOtpExpires?: number; // Timestamp for when the email OTP expires
-  phoneOtpExpires?: number; // Timestamp for when the phone OTP expires
-  otpExpires?: number; // Generic OTP expiry, can be used for phone or email
-  tokenValid?: boolean;
+  channel?: OTP_CHANNEL;
+  
+  // ===== Profile Data =====
+  user?: User;
+  
+  // ===== Verification States =====
+  phoneValidated: boolean;
+  emailVerified: boolean;
+  pinSet: boolean;
+  pinVerified: boolean;
+  registrationComplete: boolean;
+  
+  // ===== Computed States =====
+  tokenValid: boolean;
+  tokenExists: boolean;
+  sessionActive: boolean;
+  
+  // ===== Timestamps =====
+  phoneOtpExpires?: number;
+  emailOtpExpires?: number;
+  
+  // ===== Metadata =====
   deviceInfo?: any;
+  
+  // ===== Allow extensions =====
   [key: string]: any;
 }
 
@@ -100,19 +109,24 @@ export interface FlowPayload {
   /** National phone number for phone entry */
   phoneNumber?: string;
   phone?: string;
-  channel?: OtpChannel;
+  channel?: OTP_CHANNEL;
   otp?: string;
   email?: string;
   emailCode?: string;
+
+  // Migrate to User
   firstName?: string;
   lastName?: string;
   address?: string;
   country?: string;
   dob?: string;
   gender?: string;
-  pin?: string;
+
+  user?: User;
+
+  pin?: string; // TODO: Do we really ues this?
   step?: AuthStep;
-  data?: StepData;
+  data?: AuthFlowState;
 }
 
 /**
@@ -135,9 +149,16 @@ export interface AuthState {
     steps: FlowStep[];
     currentIndex: number;
   } | null;
-  stepData: StepData;
+
+  flowState: AuthFlowState;
+
   error: string | null;
   deviceInfo: any | null;
+  
+  // Session management
+  session: Session | null;
+  lastActivity: number;
+  idleTimeoutMs: number; // configurable timeout
 }
 
 /**
@@ -151,7 +172,7 @@ export type AuthAction =
       type: 'START_FLOW'; 
       payload: { 
         type: AuthFlowType; 
-        initialData?: StepData; 
+        initialData?: Partial<AuthFlowState>; 
         initialIndex: number; 
       } 
     }
@@ -159,16 +180,21 @@ export type AuthAction =
       type: 'ADVANCE_STEP'; 
       payload: { 
         nextStep: AuthStep; 
-        nextData: StepData; 
+        nextData: Partial<AuthFlowState>; 
         nextIndex: number 
       } 
     }
-  | { type: 'SET_STEP_DATA'; payload: StepData }
+  | { type: 'SET_FLOW_STATE'; payload: Partial<AuthFlowState> }
   | { type: 'SET_FLOW_ERROR'; payload: string | null }
   | { type: 'END_FLOW' }
   | { type: 'CLEAR_ERROR' }
   | { type: 'LOGOUT' }
-  | { type: 'LOCKOUT'; payload?: string };
+  | { type: 'LOCKOUT'; payload?: string }
+  // Session actions
+  | { type: 'SET_SESSION'; payload: Session | null }
+  | { type: 'UPDATE_SESSION_ACTIVITY' }
+  | { type: 'LOCK_SESSION' }
+  | { type: 'CLEAR_SESSION' };
 
 /**
  * Core authentication context interface
@@ -190,29 +216,20 @@ export interface AuthContextType {
     steps: FlowStep[];
     currentIndex: number;
   } | null;
-  stepData: StepData;
+  flowState: AuthFlowState;
   error: string | null;
   deviceInfo: any | null;
 
   // Flow management
   advanceFlow: (payload: FlowPayload) => Promise<void>;
-  initiateFlow: (flowType: AuthFlowType, initialData?: StepData) => void;
-  
-  // OTP & verification helpers
-  resendPhoneOtp: () => Promise<void>;
-  
-  // PIN management
-  setPin: (pin: string) => Promise<boolean>;
-  validatePin: (pin: string) => Promise<boolean>;
-  checkPin: (pin: string) => Promise<boolean>;
-  forgotPin: () => Promise<void>;
+  initiateFlow: (flowType: AuthFlowType, initialData?: Partial<AuthFlowState>) => void;
   
   // Session management
-  softLogout: () => Promise<void>;
   hardLogout: () => Promise<void>;
-  resendEmailOtp: (email?: string) => Promise<void>;
-
-  // Authentication actions
-  signIn: (phone: string, email: string) => Promise<boolean>;
-  resetAttempts: () => Promise<void>;
+  // Session methods
+  lockSession: () => Promise<void>;
+  unlockSession: () => Promise<boolean>;
+  // Idle monitoring (for UI toast warnings)
+  isIdle: boolean;
+  idleTimeRemaining: number;
 }

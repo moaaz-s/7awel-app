@@ -12,7 +12,7 @@ import { Avatar } from "@/components/ui/avatar"
 import { useLanguage } from "@/context/LanguageContext"
 import { PhoneNumber } from "@/components/ui/phone-number"
 import { Form, FormField } from "@/components/ui/form"
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import type { User } from "@/types" // Import User type
 import { ContentCard } from "@/components/ui/cards/content-card"
 import { Loader2 } from "lucide-react"

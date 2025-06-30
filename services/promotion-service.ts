@@ -1,8 +1,9 @@
 // services/promotion-service.ts
-import { httpClient } from "@/services/http-client";
+import { publicHttpClient } from "@/services/httpClients/public";
 import { error as logError } from "@/utils/logger";
 import type { ApiResponse, Promotion } from "@/types";
-import { handleError, respondOk } from "@/utils/api-utils";
+import { handleError, respondOk, isApiSuccess } from "@/utils/api-utils";
+import { ErrorCode } from "@/types/errors";
 
 const BASE_PATH = "/promotions";
 
@@ -11,11 +12,13 @@ export const promotionService = {
   async getPromotions(locale?: string): Promise<ApiResponse<Promotion[]>> {
     try {
       const params = locale ? { locale } : undefined;
-      const response = await httpClient.get<Promotion[]>(`${BASE_PATH}`, params);
-      return respondOk(response);
+      const response = await publicHttpClient.get<ApiResponse<Promotion[]>>(`${BASE_PATH}`, params);
+      if (!isApiSuccess(response))
+        return handleError(response.error || "Failed to fetch promotions", response.errorCode || ErrorCode.UNKNOWN);
+      return response;
     } catch (e) {
       logError("[promotionService] getPromotions failed:", e);
-      return handleError("Failed to fetch promotions", e);
+      return handleError("Failed to fetch promotions", ErrorCode.UNKNOWN);
     }
   }
 };

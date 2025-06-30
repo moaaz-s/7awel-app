@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { TransactionCard } from "@/components/ui/transaction-card"
-import { useData } from "@/context/DataContext"
+import { useData } from "@/context/DataContext-v2"
 import { PageContainer } from "@/components/layouts/page-container"
 import { spacing } from "@/components/ui-config"
 import { SearchInput } from "@/components/ui/search-input"

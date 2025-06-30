@@ -138,6 +138,10 @@ export const ar = {
     emailEntrySubtitle: "سنرسل رابط تحقق إلى هذا البريد الإلكتروني",
     initializing: "جاري التهيئة...",
     loading: "جاري التحميل...",
+    idle: {
+      warningTitle: "ستنتهي الجلسة قريباً",
+      warningDescription: "ستنتهي جلستك في 30 ثانية بسبب عدم النشاط",
+    },
   },
   logout: {
     confirmTitle: "تأكيد تسجيل الخروج",
@@ -459,9 +463,16 @@ export const ar = {
     PIN_UNEXPECTED_ISSUE: "مشكلة غير متوقعة مع رمز الحماية. يرجى المحاولة مرة أخرى.",
     PIN_SET_FAILED: "فشل في إعداد رمز الحماية. يرجى المحاولة مرة أخرى.",
 
-    // Email verification errors
+    // Error codes - Email
     EMAIL_ALREADY_REGISTERED: "هذا البريد الإلكتروني مسجل بالفعل.",
     EMAIL_OTP_VERIFICATION_FAILED: "فشل في التحقق من رمز البريد الإلكتروني. يرجى المحاولة مرة أخرى.",
+
+    // Error codes - API/User
+    USER_NOT_FOUND: "المستخدم غير موجود",
+    USER_FETCH_FAILED: "فشل في جلب بيانات المستخدم",
+    USER_UPDATE_FAILED: "فشل في تحديث بيانات المستخدم",
+    USER_UPDATE_MISSING_INFORMATION: "يجب إدخال المعلومات الكاملة",
+    USER_CANNOT_UPDATE_EMAIL_PHONE: "لا يمكن تحديث البريد الإلكتروني أو رقم الهاتف",
 
     // AUTH
     AUTH_INIT_FAILED: "فشل في تهيئة مسار المصادقة",
@@ -488,6 +499,16 @@ export const ar = {
     VALIDATION_DESCRIPTION_TOO_LONG: "الوصف طويل جداً",
     VALIDATION_DATETIME_INVALID: "تنسيق التاريخ والوقت غير صالح",
     VALIDATION_ENTITY_REQUIRED: "الكيان مطلوب",
+    
+    // Error codes - Transactions
+    TRANSACTION_FAILED: "فشلت المعاملة. يرجى المحاولة مرة أخرى لاحقاً.",
+    INSUFFICIENT_FUNDS: "رصيد غير كافي. يرجى إدخال مبلغ أصغر.",
+    INVALID_AMOUNT: "يرجى إدخال مبلغ صالح.",
+    INVALID_RECIPIENT: "مستلم غير صالح. يرجى اختيار جهة اتصال صالحة.",
+    INVALID_METHOD: "طريقة غير صالحة. يرجى اختيار طريقة سحب نقدي صالحة.",
+    TRANSACTION_NOT_FOUND: "المعاملة غير موجودة.",
+    TRANSACTION_LIST_FAILED: "فشل تحميل المعاملات.",
+    CASH_OUT_FAILED: "فشل السحب النقدي. يرجى المحاولة مرة أخرى لاحقاً.",
   },
   pinPad: {
     keypadNumberLabel: 'رقم {num}', 

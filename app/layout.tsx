@@ -8,14 +8,16 @@ import { LanguageProvider } from "@/context/LanguageContext"
 import { Suspense, useEffect } from "react"
 import InnerLayout from './InnerLayout';
 import { AuthProvider } from "@/context/auth/AuthContext";
-import { DataProvider } from "@/context/DataContext";
-import { SessionProvider } from "@/context/SessionContext";
+import { DataProvider } from "@/context/DataContext-v2";
 import AppInitializer from "@/components/auth/AppInitializer";
 import { ProfileSettingsProvider } from "@/context/ProfileSettingsContext"; 
 import { HapticProvider } from "@/context/HapticContext";
 import { Poppins } from 'next/font/google'
 import { colors } from "@/components/ui-config"
-import { httpClient, httpClientUnauthenticated } from "@/services/http-client"
+
+import { Loader2 } from "lucide-react";
+import { publicHttpClient } from "@/services/httpClients/public";
+import { privateHttpClient } from "@/services/httpClients/private";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -33,7 +35,7 @@ const poppins = Poppins({
 function LoadingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   )
 }
@@ -45,8 +47,8 @@ export default function RootLayout({
 }>) {
   
   useEffect(() => {    
-    httpClient.init()
-    httpClientUnauthenticated.init()
+    publicHttpClient.init();
+    privateHttpClient.init()
   }, [])
 
   return (
@@ -65,17 +67,15 @@ export default function RootLayout({
           <LanguageProvider>
             <HapticProvider>
               <AuthProvider>
-                <SessionProvider>
-                  <DataProvider>
-                    <ProfileSettingsProvider>
-                      <AppInitializer>
-                        <Suspense fallback={<LoadingFallback />}>
-                          <InnerLayout>{children}</InnerLayout>
-                        </Suspense>
-                      </AppInitializer>
-                    </ProfileSettingsProvider>
-                  </DataProvider>
-                </SessionProvider>
+                <DataProvider>
+                  <ProfileSettingsProvider>
+                    <AppInitializer>
+                      <Suspense fallback={<LoadingFallback />}>
+                        <InnerLayout>{children}</InnerLayout>
+                      </Suspense>
+                    </AppInitializer>
+                  </ProfileSettingsProvider>
+                </DataProvider>
               </AuthProvider>
             </HapticProvider>
           </LanguageProvider>

@@ -1,6 +1,6 @@
 "use client"
 
-import { TransactionIcon } from "@/components/icons"
+import { getDisplayProps } from "@/utils/transaction-view-ui"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { typography } from "@/components/ui-config"
 import { ContentCardItem } from "@/components/ui/cards/content-card-item"
@@ -14,13 +14,14 @@ interface TransactionCardProps {
 }
 
 export function TransactionCard({ transaction, showStatus = false, className = "" }: TransactionCardProps) {
-  const { id, name, amount, date, type, status } = transaction
+  const { id, name, status } = transaction
+  const { direction, amountStr, icon: iconEl, dateStr } = getDisplayProps(transaction)
   const { t } = useLanguage()
 
   // Create description component with date and optional status badge
   const description = (
     <div className="flex items-center gap-2">
-      <span className={`${typography.small} ${typography.muted} ltr-phone-number`}>{date}</span>
+      <span className={`${typography.small} ${typography.muted} ltr-phone-number`}>{dateStr}</span>
       {showStatus && <StatusBadge status={status as any} text={t(`transaction.${status}`)} />}
     </div>
   )
@@ -28,7 +29,7 @@ export function TransactionCard({ transaction, showStatus = false, className = "
   // Format amount with proper sign
   const formattedAmount = (
     <div className={typography.body}>
-      {amount < 0 ? "-" : "+"}${Math.abs(amount).toFixed(2)}
+      {amountStr}
     </div>
   )
 
@@ -36,7 +37,7 @@ export function TransactionCard({ transaction, showStatus = false, className = "
     <ContentCardItem
       href={`/transactions/${id}`}
       className={className}
-      icon={<TransactionIcon type={type} />}
+      icon={iconEl}
       label={name}
       description={description}
       rightContent={formattedAmount}
