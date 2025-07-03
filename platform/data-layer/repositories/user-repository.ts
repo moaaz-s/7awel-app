@@ -99,17 +99,8 @@ export class UserRepository extends BaseRepository<'userProfile'> {
    */
   async syncToRemote(profile: LocalDatabase['userProfile']): Promise<void> {
     try {
-      const response = await userService.updateUser({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        phone: profile.phone,
-        avatar: profile.avatar,
-        country: profile.country,
-        address: profile.address,
-        dob: profile.dob,
-        gender: profile.gender
-      });
+      const { id, lastUpdated, ...payload } = profile;
+      const response = await userService.updateUser(payload);
       
       if (response.error) {
         throw new Error(response.error || 'Failed to sync profile');

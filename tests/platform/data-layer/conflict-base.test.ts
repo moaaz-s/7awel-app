@@ -1,22 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { BaseRepository } from "@/platform/data-layer/repositories/base-repository";
-import { BaseLocalDatabaseManager } from "@/platform/local-db/local-db-common";
-import type { LocalDatabase, StoreName } from "@/platform/local-db/local-db-types";
-import type { RepositoryOptions } from "@/platform/data-layer/repositories/base-repository";
+import { MemoryDB } from "../../utils/memory-db";
+import { RepositoryOptions } from "@/platform/data-layer/types";
 
-// Minimal in-memory Local DB implementation ----------------------------------
-class MemoryDB extends BaseLocalDatabaseManager {
-  private store = new Map<string, any>();
-  async init() { this.isInitialized = true; }
-  key(store: StoreName, id: string) { return `${store}:${id}`; }
-  async get<T extends StoreName>(s:T,k:string){return this.store.get(this.key(s,k));}
-  async getAll<T extends StoreName>(s:T){const arr:LocalDatabase[T][]=[];for(const [k,v] of this.store.entries()){if(k.startsWith(`${s}:`)) arr.push(v);}return arr;}
-  async set<T extends StoreName>(s:T,v:LocalDatabase[T]){this.store.set(this.key(s,(v as any).id),v);}
-  async delete<T extends StoreName>(s:T,k:string){this.store.delete(this.key(s,k));}
-  async clear<T extends StoreName>(s:T){for(const k of [...this.store.keys()]) if(k.startsWith(`${s}:`)) this.store.delete(k);} 
-  async transaction<R>(){throw new Error("not implemented");}
-}
-
+// Use shared in-memory Local DB implementation for tests ----------------------
 const localDB = new MemoryDB();
 const storageManager = { local: localDB } as any; // StorageManager shape for tests
 

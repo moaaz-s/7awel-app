@@ -5,22 +5,38 @@ import { LocalBalance } from '@/platform/local-db/local-db-types';
 import { balanceSchema } from '@/platform/validators/schemas-zod';
 import { safeMerge } from '@/utils/merge-helpers';
 import { walletService } from '@/services/wallet-service';
-import { AssetBalance, ApiResponse } from '@/types';
+import type { AssetBalance } from '@/types';
 import { isApiSuccess } from '@/utils/api-utils';
 import { error as logError } from '@/utils/logger';
 
 export class WalletRepository extends BaseRepository<'balance'> {
+  /**
+   * Isolated clock helper so tests can stub Date easily.
+   * Keeping it as a method avoids mutating globals in unit tests.
+   */
+  private readonly now = () => Date.now();
   private toCore(local: LocalBalance): AssetBalance {
-    const { id: _id, lastUpdated: _lu, ...core } = local;
-    return core;
+    return local;
   }
 
-  private toLocal(core: AssetBalance, id: string, meta: Partial<LocalBalance> = {}): LocalBalance {
+  /**
+   * Convert remote/core balance into validated LocalBalance, ensuring we don't duplicate
+   * the id / lastUpdated keys (they are managed locally).
+   */
+  private toLocal(
+    core: Omit<AssetBalance, 'id' | 'lastUpdated'> | AssetBalance,
+    id: string,
+    meta: Partial<LocalBalance> = {}
+  ): LocalBalance {
     // runtime validation & defaults
+    // Strip potentially conflicting keys from incoming core object first
+    // (e.g. if backend now returns id / lastUpdated we still want local values)
+    const { id: _discardId, lastUpdated: _discardLu, ...rest } = core as Partial<AssetBalance> & { [k: string]: any };
+
     return safeMerge({} as LocalBalance, {
       id,
-      lastUpdated: Date.now(),
-      ...core,
+      lastUpdated: this.now(),
+      ...rest,
       ...meta,
     }, balanceSchema) as LocalBalance;
   }

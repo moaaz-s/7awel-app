@@ -6,22 +6,20 @@ import { Transaction, User, Contact, AssetBalance } from '@/types';
 // Extend core DTOs with optional local-only metadata
 export interface LocalTransaction extends Transaction {
   /** Timestamp when the record was last synced */
-  syncedAt?: number;
+  syncedAt: number;
   /** Mark record as not yet pushed to backend */
   localOnly?: boolean;
-
-
 }
 
 export interface LocalUser extends User {
   /** Timestamp when profile was updated in local DB */
-  lastUpdated?: number;
+  lastUpdated: number;
 }
 
 export interface LocalContact extends Contact {
-  phoneHash?: string;
-  isFavorite?: boolean;
-  syncedAt?: number;
+  phoneHash: string;
+  isFavorite: boolean;
+  syncedAt: number;
   hasAccount?: boolean;
   lastInteraction?: number;
   avatar?: string;

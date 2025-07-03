@@ -84,7 +84,4 @@ export const contactService = {
         }
     },
 
-    async importDeviceContacts(): Promise<ApiResponse<number>> {
-        return handleError("importDeviceContacts handled in ContactRepository", ErrorCode.NOT_IMPLEMENTED);
-    },
 } as const;

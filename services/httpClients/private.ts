@@ -58,7 +58,10 @@ class PrivateHttpClient extends HttpClient {
 
   /* ---------------- Contact --------------- */
   getContacts(params: { page?: number; limit?: number } = {}): Promise<ApiResponse<PaginatedWithTotal<Contact>>> {
-    return this.get(ENDPOINTS.CONTACTS.GET.url, params) as Promise<ApiResponse<PaginatedWithTotal<Contact>>>;
+    const strParams: Record<string, string> = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    );
+    return this.get(ENDPOINTS.CONTACTS.GET.url, strParams) as Promise<ApiResponse<PaginatedWithTotal<Contact>>>;
   }
 
   syncContacts(hashedPhones: string[]): Promise<ApiResponse<{ success: boolean }>> {
