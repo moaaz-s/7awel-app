@@ -73,6 +73,52 @@ export class ContactHelpers {
       return null;
     }
   }
+
+  /**
+   * Resolve display name from phone hash using local contacts
+   * Returns name if found, phone number if available, or fallback text
+   */
+  static resolveDisplayName(
+    phoneHash: string | undefined, 
+    contacts: Array<{ phoneHash: string; name: string; phone: string }>,
+    fallbackText: string = "Unknown"
+  ): string {
+    if (!phoneHash || !contacts || contacts.length === 0) {
+      return fallbackText;
+    }
+    
+    const contact = contacts.find(c => c.phoneHash === phoneHash);
+    if (contact) {
+      // Return name if available, otherwise formatted phone number
+      return contact.name || ContactHelpers.formatPhoneForDisplay(contact.phone) || fallbackText;
+    }
+    
+    return fallbackText;
+  }
+
+  /**
+   * Format phone number for display using libphonenumber-js
+   * This provides proper international formatting for all countries
+   */
+  static formatPhoneForDisplay(phoneNumber: string): string {
+    if (!phoneNumber) return '';
+    
+    try {
+      // Parse the phone number (it should already be in E.164 format)
+      const parsed = parsePhoneNumberWithError(phoneNumber);
+      
+      if (parsed.isValid()) {
+        // Return in international format for consistency
+        return parsed.formatInternational();
+      }
+    } catch (error) {
+      // If parsing fails, return the original number
+      console.warn(`Failed to format phone number: ${phoneNumber}`, error);
+    }
+    
+    // Fallback to original number if parsing fails
+    return phoneNumber;
+  }
   
   /**
    * Match local device contacts with app users
@@ -242,3 +288,125 @@ export class SyncHelpers {
     return timeSinceLastSync > maxAgeMs;
   }
 }
+
+/**
+ * ContactResolver - Direct access to local contacts without passing them around
+ * This eliminates the need to pass contacts as parameters everywhere
+ */
+export class ContactResolver {
+  private static instance: ContactResolver | null = null;
+  private contacts: Array<{ phoneHash: string; name: string; phone: string }> = [];
+  private initialized = false;
+
+  private constructor() {}
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(): ContactResolver {
+    if (!this.instance) {
+      this.instance = new ContactResolver();
+    }
+    return this.instance;
+  }
+
+  /**
+   * Initialize with contacts from local database
+   */
+  async initialize(db?: LocalDatabaseManager) {
+    if (this.initialized) return;
+
+    try {
+      // If no db provided, get it from platform
+      if (!db) {
+        const { loadPlatform } = await import('@/platform');
+        const platform = await loadPlatform();
+        db = await platform.getLocalDB();
+      }
+
+      const contactsData = await db.getAll('contacts');
+      this.contacts = contactsData.map(c => ({
+        phoneHash: c.phoneHash,
+        name: c.name,
+        phone: c.phone
+      }));
+      
+      this.initialized = true;
+    } catch (error) {
+      console.warn('[ContactResolver] Failed to initialize:', error);
+      this.contacts = [];
+    }
+  }
+
+  /**
+   * Resolve display name directly without needing to pass contacts
+   */
+  resolveDisplayName(phoneHash: string | undefined, fallback: string = "Unknown"): string {
+    if (!this.initialized) {
+      console.warn('[ContactResolver] Not initialized, call initialize() first');
+      return "Unknown";
+    }
+
+    return ContactHelpers.resolveDisplayName(phoneHash, this.contacts, fallback);
+  }
+
+  /**
+   * Lookup phone number directly (simplified implementation)
+   */
+  lookupPhone(phoneHash: string | undefined): string | undefined {
+    if (!this.initialized || !phoneHash) return undefined;
+    
+    const contact = this.contacts.find(c => c.phoneHash === phoneHash);
+    return contact?.phone;
+  }
+
+  /**
+   * Refresh contacts from database (call when contacts are updated)
+   */
+  async refreshContacts(db?: LocalDatabaseManager) {
+    this.initialized = false;
+    await this.initialize(db);
+  }
+
+  /**
+   * Check if contacts are loaded
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
+   * Get contacts count (for debugging)
+   */
+  getContactsCount(): number {
+    return this.contacts.length;
+  }
+}
+
+// Export singleton instance for easy access
+export const contactResolver = ContactResolver.getInstance();
+
+/**
+ * Initialize ContactResolver in your app startup
+ * 
+ * @example
+ * ```typescript
+ * // In your app initialization (e.g., main.ts, app.tsx)
+ * import { contactResolver } from '@/platform/local-db/local-db-common';
+ * 
+ * async function initializeApp() {
+ *   // Initialize contact resolver with database
+ *   await contactResolver.initialize();
+ *   
+ *   // Check if initialization was successful
+ *   if (contactResolver.isInitialized()) {
+ *     console.log(`ContactResolver initialized with ${contactResolver.getContactsCount()} contacts`);
+ *   }
+ * }
+ * 
+ * // Call when contacts are updated (e.g., in DataContext)
+ * async function onContactsUpdated() {
+ *   await contactResolver.refreshContacts();
+ * }
+ * ```
+ */

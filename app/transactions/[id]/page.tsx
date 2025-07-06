@@ -19,8 +19,8 @@ import { error as logError } from "@/utils/logger";
 import { ErrorCode } from "@/types/errors";
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { getTransaction, formatDate, formatCurrency, userProfile } = useData()
-  const { t, language } = useLanguage()
+  const { getTransaction, userProfile } = useData()
+  const { t, locale } = useLanguage()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { id } = use(params)
@@ -90,24 +90,33 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
   const transactionDate = new Date(transaction.createdAt)
     
   // Format transaction amount with sign and currency symbol
-  const { direction, amountStr: formattedAmount } = getDisplayProps(transaction, { currentUserId: userProfile?.id });
+  const { 
+    direction, 
+    displayName,
+    amountComponent 
+  } = getDisplayProps(transaction, { 
+    currentUserId: userProfile?.id,
+    locale,
+    returnComponents: true,
+    amountComponentClassName: "text-2xl font-semibold"
+  });
+  
   // TODO: Make sure this link has a corresponding page
-  const contactHref = `/contacts/${direction === "outgoing" ? transaction.recipientId ?? "" : direction === "incoming" ? transaction.senderId ?? "" : transaction.name.replace(/\\s/g, "-").toLowerCase()}`;
+  // TODO: Double check this link is correct
+  const contactHref = `/contacts/${direction === "outgoing" ? transaction.recipientId ?? "" : direction === "incoming" ? transaction.senderId ?? "" : displayName.replace(/\s/g, "-").toLowerCase()}`;
 
   const transactionHeader = (
     <div className="flex items-start">
       <div className="flex-grow">
         <div className="flex items-baseline mb-1">
-          <h1 className="text-2xl font-semibold mr-1">
-            {formattedAmount}
-          </h1>
+          {amountComponent}
         </div>
         {/* Make the contact name clickable - using appropriate ID based on transaction type */}
         <Link 
           href={contactHref}
           className="text-base text-primary hover:underline block mb-1"
         >
-          {transaction.name}
+          {displayName}
         </Link>
         <DateDisplay 
           date={transactionDate} 

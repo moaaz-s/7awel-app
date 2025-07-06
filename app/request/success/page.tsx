@@ -19,7 +19,7 @@ interface RequestDetails {
 }
 
 export default function RequestSuccessPage() {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [details, setDetails] = useState<RequestDetails | null>(null)
 
   useEffect(() => {
@@ -29,6 +29,33 @@ export default function RequestSuccessPage() {
     //   setDetails(storedDetails)
     // }
   }, [])
+
+  // TODO: Remove this and create a real request flow 
+  // // Create display props from details once
+  const getTransactionDisplayProps = () => {
+    if (!details) return null;
+    
+    const mockTransaction = { 
+      amount: parseFloat(details.amount ?? "0"), 
+      assetSymbol: "USD", 
+      type: "transfer" as const, 
+      createdAt: details.createdAt ?? new Date().toISOString(),
+      id: "mock", // Required fields for schema
+      reference: details.reference || "mock-ref",
+      status: "completed" as const,
+      updatedAt: details.createdAt ?? new Date().toISOString(),
+      syncedAt: Date.now(),
+    };
+    
+    return getDisplayProps(mockTransaction, {
+      locale,
+      returnComponents: true,
+      amountComponentClassName: "font-medium",
+      iconComponentSize: 16,
+    });
+  };
+
+  const displayProps = getTransactionDisplayProps();
 
   // Create share text based on transaction details
   const shareText = details
@@ -43,25 +70,18 @@ export default function RequestSuccessPage() {
       primaryActionHref="/home"
       shareTitle="Payment Request"
       shareText={shareText}
-      icon={(() => {
-           const tx = { amount: parseFloat(details?.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details?.createdAt ?? new Date().toISOString() } as any;
-           const { colour, icon } = getDisplayProps(tx);
-           return (
-             <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${colour.bg}`}>
-               {icon}
-             </span>
-           );
-        })()}
+      icon={displayProps ? (
+        <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${displayProps.colour.bg}`}>
+          {displayProps.icon}
+        </span>
+      ) : (
+        <CheckCircleIcon className="h-16 w-16 text-green-500" />
+      )}
     >
       <ContentCard elevated={true} padding="sm">
         <div className={spacing.stack}>
           <ContentCardRowItem label={t("transaction.amount")}>
-            {(() => {
-              if(!details) return null;
-              const tx = { amount: parseFloat(details.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details.createdAt } as any;
-              const { amountStr } = getDisplayProps(tx);
-              return amountStr;
-            })() }
+            {displayProps?.amountComponent || details?.amount}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.recipient")}>
@@ -69,12 +89,7 @@ export default function RequestSuccessPage() {
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.createdAt")}>
-            {(() => {
-              if(!details) return null;
-              const tx = { createdAt: details.createdAt, amount: 0, assetSymbol:"USD", type:"transfer" } as any;
-              const { dateStr } = getDisplayProps(tx);
-              return dateStr;
-            })()}
+            {displayProps?.dateStr || details?.createdAt}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.reference")}>

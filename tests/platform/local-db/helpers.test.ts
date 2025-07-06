@@ -6,9 +6,8 @@ import { createHash } from 'crypto';
 
 beforeAll(() => {
   if (!globalThis.crypto?.subtle) {
-    // @ts-ignore
-    globalThis.crypto = {
-      // @ts-ignore
+    // Mocking crypto for tests
+    (globalThis as any).crypto = {
       subtle: {
         async digest(_alg: string, data: ArrayBuffer) {
           const hash = createHash('sha256');
@@ -38,6 +37,62 @@ describe("ContactHelpers", () => {
     const hash2 = await ContactHelpers.hashPhoneNumber("+14155552671");
     expect(hash1).toMatch(/^[a-f0-9]{64}$/);
     expect(hash1).toBe(hash2);
+  });
+
+  describe("formatPhoneForDisplay", () => {
+    it("should format valid phone number using libphonenumber-js", () => {
+      const formatted = ContactHelpers.formatPhoneForDisplay("+14155552671");
+      expect(formatted).toBe("+1 415 555 2671"); // International format
+    });
+
+    it("should return original number for invalid phone", () => {
+      const invalid = "invalid-phone";
+      const formatted = ContactHelpers.formatPhoneForDisplay(invalid);
+      expect(formatted).toBe(invalid);
+    });
+
+    it("should handle empty string", () => {
+      const formatted = ContactHelpers.formatPhoneForDisplay("");
+      expect(formatted).toBe("");
+    });
+  });
+
+  describe("resolveDisplayName", () => {
+    const mockContacts = [
+      { phoneHash: "hash123", name: "John Doe", phone: "+14155552671" },
+      { phoneHash: "hash456", name: "", phone: "+19875554321" },
+      { phoneHash: "hash789", name: "Jane Smith", phone: "+15551234567" },
+    ];
+
+    it("should return contact name when found", () => {
+      const result = ContactHelpers.resolveDisplayName("hash123", mockContacts);
+      expect(result).toBe("John Doe");
+    });
+
+    it("should return formatted phone when name is empty", () => {
+      const result = ContactHelpers.resolveDisplayName("hash456", mockContacts);
+      expect(result).toBe("+1 987 555 4321"); // Formatted phone
+    });
+
+    it("should return fallback when contact not found", () => {
+      const result = ContactHelpers.resolveDisplayName("unknown", mockContacts, "Custom Fallback");
+      expect(result).toBe("Custom Fallback");
+    });
+
+    it("should return default fallback when contact not found and no custom fallback", () => {
+      const result = ContactHelpers.resolveDisplayName("unknown", mockContacts);
+      expect(result).toBe("Unknown");
+    });
+
+    it("should handle undefined phoneHash", () => {
+      const result = ContactHelpers.resolveDisplayName(undefined, mockContacts);
+      expect(result).toBe("Unknown");
+    });
+
+    it("should handle empty contacts array", () => {
+      const result = ContactHelpers.resolveDisplayName("hash123", []);
+      expect(result).toBe("Unknown");
+    });
   });
 
   it("matchContacts stores matched contacts and flags hasAccount", async () => {

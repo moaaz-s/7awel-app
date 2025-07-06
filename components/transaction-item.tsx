@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import type { Transaction } from "@/types"
 import { useData } from "@/context/DataContext-v2";
+import { useLanguage } from "@/context/LanguageContext";
 import { getDisplayProps } from "@/utils/transaction-view-ui"
 
 interface TransactionItemProps {
@@ -11,14 +12,22 @@ interface TransactionItemProps {
 
 export function TransactionItem({ transaction, darkMode = false }: TransactionItemProps) {
   const { userProfile } = useData();
+  const { locale } = useLanguage();
+  
   const {
-    direction,
-    icon: iconNode,
-    amountStr: formattedAmount,
+
     dateStr,
-    colour: { bg, icon: iconColor },
-  } = getDisplayProps(transaction, { currentUserId: userProfile?.id, darkMode });
-  const { name } = transaction
+    displayName,
+    amountComponent, // New component option
+    iconComponent, // New component option
+  } = getDisplayProps(transaction, { 
+    currentUserId: userProfile?.id, 
+    locale, // Now properly using locale from context
+    darkMode,
+    returnComponents: true, // Enable component return for consistent styling
+    amountComponentClassName: "font-medium",
+    iconComponentSize: 12
+  });
 
   return (
     <div
@@ -27,17 +36,15 @@ export function TransactionItem({ transaction, darkMode = false }: TransactionIt
       }`}
     >
       <div className="flex items-center gap-4">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${bg}`}>
-          <div className={iconColor}>{iconNode}</div>
-        </div>
+        {/* Use the consistent iconComponent instead of manual styling */}
+        {iconComponent}
         <div>
-          <p className={`font-medium ${darkMode ? "text-white" : ""}`}>{name}</p>
+          <p className={`font-medium ${darkMode ? "text-white" : ""}`}>{displayName}</p>
           <p className={`text-xs ${darkMode ? "text-gray-400" : "text-muted-foreground"}`}>{dateStr}</p>
         </div>
       </div>
-      <div className={`font-medium ${direction === "outgoing" ? (darkMode ? "text-red-400" : "text-red-500") : darkMode ? "text-green-400" : "text-green-500"}`}>
-        {formattedAmount}
-      </div>
+      {/* Use the consistent amountComponent instead of manual styling */}
+      {amountComponent}
     </div>
   )
 }

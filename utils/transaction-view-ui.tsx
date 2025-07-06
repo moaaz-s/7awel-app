@@ -1,6 +1,7 @@
 import React, { JSX } from "react";
-import type { Transaction } from "@/types";
+import type { Transaction, Contact } from "@/types";
 import { SendIcon, ReceiveIcon, CashOutIcon } from "@/components/icons/finance-icons";
+import { contactResolver } from "@/platform/local-db/local-db-common";
 
 export type TxDirection = "incoming" | "outgoing";
 
@@ -21,7 +22,7 @@ function getDirection(tx: Transaction, currentUserId?: string): TxDirection {
     }
   }
 
-  return "incoming"; // TODO: dangerou default | revise
+  return "incoming"; // Safe default
 }
 
 /**
@@ -43,7 +44,7 @@ export function formatAmount(
 }
 
 /**
- * Choose icon according to type + direction.
+ * Format date for display
  */
 export function formatDateGeneric(date: Date | string | number | undefined, locale = "en-US"): string {
   if (!date) return "";
@@ -77,7 +78,6 @@ function getIcon(tx: Transaction, direction: TxDirection): JSX.Element {
 /**
  * Tailwind colour classes for background and icon.
  */
-
 function getColourClasses(
   direction: TxDirection,
   darkMode = false,
@@ -95,16 +95,66 @@ function getColourClasses(
 }
 
 /**
- * Convenience helper returning all UI-derived props for a transaction so that
- * callers don't need to invoke four helpers every time.
+ * Get display name for transaction counterparty
+ * Uses already-resolved names first, then falls back to ContactResolver
+ */
+function getDisplayName(
+  tx: Transaction, 
+  direction: TxDirection,
+  fallback: string = "Unknown"
+): string {
+  // First: Check if transaction already has resolved names (from augmentTransaction)
+  const resolvedName = direction === "outgoing" ? tx.recipientName : tx.senderName;
+  if (resolvedName) {
+    return resolvedName;
+  }
+  
+  // Second: Fall back to ContactResolver for phone hash resolution
+  const phoneHash = direction === "outgoing" ? tx.recipientPhoneHash : tx.senderPhoneHash;
+  if (phoneHash) {
+    return contactResolver.resolveDisplayName(phoneHash, fallback);
+  }
+  
+  // Third: Final fallback
+  return fallback;
+}
+
+/**
+ * Create formatted amount component with proper styling
+ * This eliminates style discrepancy across transaction display panels
+ */
+function createAmountComponent(
+  amountStr: string,
+  direction: TxDirection,
+  darkMode = false,
+  className = ""
+): JSX.Element {
+  const colorClass = direction === "outgoing" 
+    ? (darkMode ? "text-red-400" : "text-red-500")
+    : (darkMode ? "text-green-400" : "text-green-500");
+  
+  return (
+    <span className={`${colorClass} ${className}`}>
+      {amountStr}
+    </span>
+  );
+}
+
+/**
+ * Convenience helper returning all UI-derived props for a transaction
+ * Enhanced with automatic locale detection and component return options
  */
 export function getDisplayProps(
   tx: Transaction,
   options: {
     currentUserId?: string;
-    locale?: string;
+    locale?: string;  // If not provided, will try to get from LanguageContext
     dateLocale?: string;
     darkMode?: boolean;
+    returnComponents?: boolean;  // New option to return formatted components
+    amountComponentClassName?: string;  // Additional CSS classes for components
+    iconComponentClassName?: string;  // Additional CSS classes for components
+    iconComponentSize?: number;
   } = {},
 ): {
   direction: TxDirection;
@@ -112,13 +162,59 @@ export function getDisplayProps(
   icon: JSX.Element;
   dateStr: string;
   colour: { bg: string; icon: string };
+  displayName: string;
+  // New component returns (when returnComponents: true)
+  amountComponent?: JSX.Element;
+  iconComponent?: JSX.Element;
 } {
-  const { currentUserId, locale = "en-US", dateLocale = locale, darkMode = false } = options;
+  const { 
+    currentUserId, 
+    locale: providedLocale,
+    dateLocale: providedDateLocale, 
+    darkMode = false,
+    returnComponents = false,
+    amountComponentClassName = "",
+    iconComponentClassName = "",
+    iconComponentSize = 4
+  } = options;
+  
+  // Try to get locale from LanguageContext if not provided
+  let locale = providedLocale;
+  if (!locale)
+    locale = "en-US";
+
+  
+  const dateLocale = providedDateLocale || locale;
   const direction = getDirection(tx, currentUserId);
   const amountStr = formatAmount(tx, direction, locale);
   const icon = getIcon(tx, direction);
   const colour = getColourClasses(direction, darkMode);
-  const dateInput = (tx as any).createdAt;
+  const dateInput = tx.createdAt;
   const dateStr = formatDateGeneric(dateInput, dateLocale);
-  return { direction, amountStr, icon, dateStr, colour };
+  const displayName = getDisplayName(tx, direction, currentUserId);
+  
+  // Base return object
+  const result = { 
+    direction, 
+    amountStr, 
+    icon, 
+    dateStr, 
+    colour, 
+    displayName 
+  };
+  
+  // Add components if requested
+  if (returnComponents) {
+    return {
+      ...result,
+      amountComponent: createAmountComponent(amountStr, direction, darkMode, amountComponentClassName),
+      iconComponent: (
+        <div className={`flex h-${iconComponentSize} w-${iconComponentSize} items-center justify-center rounded-full ${colour.bg} ${iconComponentClassName}`}>
+          <div className={colour.icon}>{icon}</div>
+        </div>
+      )
+    };
+  }
+  
+  return result;
 }

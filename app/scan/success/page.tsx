@@ -17,7 +17,7 @@ interface ScanPaymentDetails {
 }
 
 export default function ScanSuccessPage() {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [details, setDetails] = useState<ScanPaymentDetails | null>(null)
 
   useEffect(() => {
@@ -30,6 +30,33 @@ export default function ScanSuccessPage() {
     }
   }, [])
 
+  // TODO: remove this and create a real scan flow 
+  // // Create display props from details once
+  const getTransactionDisplayProps = () => {
+    if (!details) return null;
+    
+    const mockTransaction = { 
+      amount: parseFloat(details.amount ?? "0"), 
+      assetSymbol: "USD", 
+      type: "transfer" as const, 
+      createdAt: details.createdAt ?? new Date().toISOString(),
+      id: "mock", // Required fields for schema
+      reference: details.reference || "mock-ref",
+      status: "completed" as const,
+      updatedAt: details.createdAt ?? new Date().toISOString(),
+      syncedAt: Date.now(),
+    };
+    
+    return getDisplayProps(mockTransaction, {
+      locale,
+      returnComponents: true,
+      amountComponentClassName: "font-medium",
+      iconComponentSize: 16,
+    });
+  };
+
+  const displayProps = getTransactionDisplayProps();
+
   return (
     <SuccessLayout
       title={t("sendSuccess.title")}
@@ -40,25 +67,18 @@ export default function ScanSuccessPage() {
       shareText={t("transaction.shareReceipt")}
       shareUrl={"/something/something"}
       shareButtonLabel={t("transaction.shareReceipt")}
-      icon={(() => {
-           const tx = { amount: parseFloat(details?.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details?.createdAt ?? new Date().toISOString() } as any;
-           const { direction, icon, colour } = getDisplayProps(tx);
-           return (
-             <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${colour.bg}`}> 
-               {icon}
-             </span>
-           );
-        })()}
+      icon={displayProps ? (
+        <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${displayProps.colour.bg}`}>
+          {displayProps.icon}
+        </span>
+      ) : (
+        <CheckCircleIcon className="h-16 w-16 text-green-500" />
+      )}
     >
       <ContentCard elevated={true} padding="sm">
         <div className="stack">
           <ContentCardRowItem label={t("transaction.amount")}>
-            {(() => {
-              if(!details) return null;
-              const tx = { amount: parseFloat(details.amount ?? "0"), assetSymbol: "USD", type: "transfer", createdAt: details.createdAt } as any;
-              const { amountStr } = getDisplayProps(tx);
-              return amountStr;
-            })() }
+            {displayProps?.amountComponent || details?.amount}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.recipient")}>
@@ -66,7 +86,7 @@ export default function ScanSuccessPage() {
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.date")}>
-            {(() => { if(!details) return null; const tx = { createdAt: details.createdAt, amount:0, assetSymbol:"USD", type:"transfer" } as any; const { dateStr } = getDisplayProps(tx); return dateStr; })()}
+            {displayProps?.dateStr || details?.createdAt}
           </ContentCardRowItem>
           
           <ContentCardRowItem label={t("transaction.reference")}>

@@ -15,6 +15,7 @@ interface LanguageContextType {
   t: (key: string, params?: Record<string, string>) => string
   dir: "ltr" | "rtl"
   isRTL: boolean
+  locale: string  // Added locale for proper formatting
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
@@ -80,12 +81,13 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     return value
   }
 
-  // Provide direction
+  // Provide direction and locale
   const dir = language === "ar" ? "rtl" : "ltr"
   const isRTL = language === "ar"
+  const locale = language === "ar" ? "ar-SA" : "en-US"  // Proper locale codes for formatting
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, dir, isRTL }} key={forceUpdateKey}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, dir, isRTL, locale }} key={forceUpdateKey}>
       {children}
     </LanguageContext.Provider>
   )

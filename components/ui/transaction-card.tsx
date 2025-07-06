@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/status-badge"
 import { typography } from "@/components/ui-config"
 import { ContentCardItem } from "@/components/ui/cards/content-card-item"
 import { useLanguage } from "@/context/LanguageContext"
+import { useData } from "@/context/DataContext-v2"
 import type { Transaction } from "@/types/index"
 
 interface TransactionCardProps {
@@ -14,9 +15,22 @@ interface TransactionCardProps {
 }
 
 export function TransactionCard({ transaction, showStatus = false, className = "" }: TransactionCardProps) {
-  const { id, name, status } = transaction
-  const { direction, amountStr, icon: iconEl, dateStr } = getDisplayProps(transaction)
-  const { t } = useLanguage()
+  const { id, status } = transaction
+  const { userProfile } = useData()
+  const { t, locale } = useLanguage()
+  
+  const { 
+    dateStr, 
+    displayName, 
+    iconComponent,
+    amountComponent,
+  } = getDisplayProps(transaction, {
+    currentUserId: userProfile?.id,
+    locale,
+    returnComponents: true,
+    amountComponentClassName: typography.body,
+    iconComponentSize: 12,
+  })
 
   // Create description component with date and optional status badge
   const description = (
@@ -26,21 +40,14 @@ export function TransactionCard({ transaction, showStatus = false, className = "
     </div>
   )
 
-  // Format amount with proper sign
-  const formattedAmount = (
-    <div className={typography.body}>
-      {amountStr}
-    </div>
-  )
-
   return (
     <ContentCardItem
-      href={`/transactions/${id}`}
+      href={`/transactions/${id}`} // TODO: Check if we can use a safer link
       className={className}
-      icon={iconEl}
-      label={name}
+      icon={iconComponent}
+      label={displayName}
       description={description}
-      rightContent={formattedAmount}
+      rightContent={amountComponent}
     />
   )
 }

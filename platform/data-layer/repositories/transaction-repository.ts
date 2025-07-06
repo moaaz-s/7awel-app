@@ -15,13 +15,49 @@ export class TransactionRepository extends BaseRepository<'recentTransactions'> 
     super(storageManager, 'recentTransactions');
   }
 
-  /** Convert LocalTransaction to core Transaction */
+  /** 
+   * Convert LocalTransaction to core Transaction
+   * Validates data integrity and throws errors for missing required fields
+   * instead of using potentially dangerous default values
+   */
   private toCore(tx: LocalTx): Transaction {
-    return {
+    // Validate required fields instead of defaulting
+    if (!tx.id) {
+      throw new Error(`Invalid LocalTransaction: missing required field 'id'`);
+    }
+    
+    if (!tx.createdAt) {
+      throw new Error(`Invalid LocalTransaction: missing required field 'createdAt' for transaction ${tx.id}`);
+    }
+    
+    if (!tx.status) {
+      throw new Error(`Invalid LocalTransaction: missing required field 'status' for transaction ${tx.id}`);
+    }
+    
+    if (!tx.type) {
+      throw new Error(`Invalid LocalTransaction: missing required field 'type' for transaction ${tx.id}`);
+    }
+    
+    if (typeof tx.amount !== 'number' || tx.amount < 0) {
+      throw new Error(`Invalid LocalTransaction: invalid amount '${tx.amount}' for transaction ${tx.id}`);
+    }
+
+    // Create the core transaction with proper validation
+    const coreTransaction: Transaction = {
+      // Copy all fields from LocalTransaction (it extends Transaction)
       ...tx,
-      createdAt: tx.createdAt,
-      assetSymbol: tx.assetSymbol || (tx as any).currency,
-    } as Transaction;
+      
+      // Ensure fee is a number (required by schema)
+      fee: typeof tx.fee === 'number' ? tx.fee : 0,
+    };
+
+    // Validate the result against the schema
+    const validationResult = transactionSchema.safeParse(coreTransaction);
+    if (!validationResult.success) {
+      throw new Error(`Failed to convert LocalTransaction to Transaction: ${validationResult.error.message}`);
+    }
+
+    return validationResult.data;
   }
 
   /** Convert core Transaction to LocalTransaction for caching */

@@ -5,6 +5,7 @@ import { privateHttpClient } from "@/services/httpClients/private"
 import { handleError, respondOk } from "@/utils/api-utils"
 import type { ApiResponse, Paginated, TransactionFilters, PaginationRequest, CashOutResponse } from "@/types"
 import { ErrorCode } from "@/types/errors"
+import { contactResolver } from "@/platform/local-db/local-db-common"
 
 // import { memoryCache } from "@/utils/cache"
 
@@ -203,9 +204,17 @@ class TransactionService {
     return Object.values(groups).sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
   }
 
+  async augmentTransaction(transaction: Transaction): Promise<Transaction> {
+    return {
+      ...transaction,
+      recipientName: contactResolver.resolveDisplayName(transaction.recipientPhoneHash, ""),
+      senderName: contactResolver.resolveDisplayName(transaction.senderPhoneHash, "")
+    }
+  }
+
   /**
    * List transactions with optional filters and pagination
-   * TODO: Review later
+   * Now uses ContactResolver - no need to pass contacts parameter!
    */
   async listTransactions(
     filters?: TransactionFilters,
@@ -218,7 +227,7 @@ class TransactionService {
       if (listError || !listData) {
         return handleError("Failed to list transactions", ErrorCode.TRANSACTION_LIST_FAILED);
       }
-      const transactions = listData.items;
+      const transactions = await Promise.all(listData.items.map(tx => this.augmentTransaction(tx)));
       
       if (transactions && transactions.length > 0) {
         // Apply client-side filters if needed
@@ -230,11 +239,17 @@ class TransactionService {
           }
           if (filters.search) {
             const searchLower = filters.search.toLowerCase();
-            filteredItems = filteredItems.filter((tx: Transaction) => 
-              tx.name?.toLowerCase().includes(searchLower) ||
-              tx.note?.toLowerCase().includes(searchLower) ||
-              tx.reference?.toLowerCase().includes(searchLower)
-            );
+            filteredItems = filteredItems.filter((tx: Transaction) => {
+              // Search in transaction reference and note
+              if (tx.reference?.toLowerCase().includes(searchLower)) return true;
+              if (tx.note?.toLowerCase().includes(searchLower)) return true;
+              
+              // Search in already-resolved contact names (populated by augmentTransaction)
+              if (tx.senderName?.toLowerCase().includes(searchLower)) return true;
+              if (tx.recipientName?.toLowerCase().includes(searchLower)) return true;
+              
+              return false;
+            });
           }
           if (filters.startDate) {
             const startDate = new Date(filters.startDate);
@@ -251,8 +266,6 @@ class TransactionService {
           nextCursor: null
         };
         
-        
-        
         return respondOk(result);
       }
       
@@ -265,21 +278,27 @@ class TransactionService {
 
   /**
    * Get a single transaction by ID
+   * Now uses named API endpoint and augments data to match listTransactions() structure
    */
   async getTransactionById(id: string): Promise<ApiResponse<Transaction | undefined>> {
     if (!id) return handleError("Transaction ID is required", ErrorCode.VALIDATION_ERROR)
     
     try {
+      // Use the named API endpoint instead of direct HTTP call
+      const response = await privateHttpClient.getTransaction(id);
       
-      
-      // Fallback to API
-      const {data: transaction, error, errorCode} = await privateHttpClient.get<ApiResponse<Transaction>>(`/transactions/${id}`);
-      if (errorCode === ErrorCode.TRANSACTION_NOT_FOUND)
+      if (response.errorCode === ErrorCode.TRANSACTION_NOT_FOUND) {
         return respondOk(undefined);
-      else if (error || !transaction)
-        throw new Error(errorCode || error || ErrorCode.TRANSACTION_NOT_FOUND);
+      }
       
+      if (response.error || !response.data) {
+        throw new Error(response.errorCode || response.error || ErrorCode.TRANSACTION_NOT_FOUND);
+      }
       
+      // Augment the transaction data to match the structure from listTransactions()
+      // This ensures consistency between single transaction fetch and list fetch
+      const transaction = await this.augmentTransaction(response.data);
+
       
       return respondOk(transaction);
     } catch (error) {

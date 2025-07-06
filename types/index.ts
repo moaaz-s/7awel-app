@@ -1,23 +1,38 @@
 // Standard module imports
 import type { Contact as ContactSchema, UserProfile as UserSchema, Transaction as TransactionSchema, AssetBalance as AssetBalanceSchema, Promotion as PromotionSchema, LogEvent as LogEventSchema } from "@/platform/validators/schemas-zod";
+import { transactionSchema } from "@/platform/validators/schemas-zod";
 import { ErrorCode } from './errors';
 
 // Domain model aliases (canonical types come from Zod schemas)
 export type User = UserSchema;
-
-
+export type UserProfile = UserSchema;
 export type Contact = ContactSchema;
 
 export type Transaction = TransactionSchema;
-
 export type AssetBalance = AssetBalanceSchema;
-
 export type Promotion = PromotionSchema;
 export type LogEvent = LogEventSchema;
 
-// Legacy enums kept (can be removed if covered by schema enums)
-export type TransactionType = "transfer" | "deposit" | "withdraw";
-export type TransactionStatus = "pending" | "completed" | "failed";
+// Either, extract specific enum types from Zod schemas using z.infer
+// export type TransactionType = TransactionSchema['type'];
+// export type TransactionStatus = TransactionSchema['status'];
+
+// OR, alternative approach - directly extract from Zod schema
+// This ensures complete type safety and eliminates duplication
+type TransactionSchemaShape = typeof transactionSchema.shape;
+export type TransactionType = TransactionSchemaShape['type']['_def']['values'][number];
+export type TransactionStatus = TransactionSchemaShape['status']['_def']['values'][number];
+
+// Other uility types for extracting other schema properties
+// export type TransactionRequiredFields = {
+//   [K in keyof TransactionSchema as TransactionSchema[K] extends undefined ? never : K]: TransactionSchema[K]
+// };
+
+// export type TransactionOptionalFields = {
+//   [K in keyof TransactionSchema as TransactionSchema[K] extends undefined ? K : never]?: TransactionSchema[K]
+// };
+
+// These types are now derived from Zod schemas above - no duplication needed!
 
 // Deprecated Promotion interface removed; canonicalised via schema alias above
 // QRData

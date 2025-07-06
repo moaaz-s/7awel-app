@@ -67,29 +67,58 @@ export const contactSchema = z.object({
 });
 
 /**
- * Transaction Schema
+ * Transaction Schema - Frontend-focused with backend integration
  */
 export const transactionSchema = z.object({
   id: z.string()
     .min(1, 'errors.VALIDATION_ID_REQUIRED'),
-  type: z.string(),
+  reference: z.string()
+    .min(1, 'errors.VALIDATION_REFERENCE_REQUIRED'),
+  senderId: z.string()
+    .optional(),
+  recipientId: z.string() 
+    .optional(),
+  // Frontend transaction types (user-friendly)
+  type: z.enum(['transfer', 'deposit', 'withdraw']),
+  status: z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled']),
   amount: z.number()
     .positive('errors.VALIDATION_AMOUNT_INVALID'),
   assetSymbol: z.string().length(3),
-  status: z.string(),
-  createdAt: z.string()
-    .datetime('errors.VALIDATION_DATETIME_INVALID'),
-  recipientId: z.string()
-    .optional(),
-  senderId: z.string()
-    .optional(),
-  recipientName: z.string()
-    .optional(),
-  senderName: z.string()
+  fee: z.number()
+    .nonnegative('errors.VALIDATION_FEE_INVALID')
     .optional(),
   note: z.string()
     .max(500, 'errors.VALIDATION_DESCRIPTION_TOO_LONG')
     .optional(),
+  createdAt: z.string()
+    .datetime('errors.VALIDATION_DATETIME_INVALID'),
+  updatedAt: z.string()
+    .datetime('errors.VALIDATION_DATETIME_INVALID'),
+  completedAt: z.string()
+    .datetime('errors.VALIDATION_DATETIME_INVALID')
+    .optional(),
+  
+  // Hashed phone numbers for contact resolution (sent by backend)
+  senderPhoneHash: z.string()
+    .optional(),
+  recipientPhoneHash: z.string()
+    .optional(),
+
+  senderName: z.string()
+    .optional(),
+  recipientName: z.string()
+    .optional(),
+  
+  // Blockchain details (minimal - only what frontend needs)
+  txHash: z.string()
+    .optional(),
+  confirmations: z.number()
+    .nonnegative('errors.VALIDATION_CONFIRMATIONS_INVALID')
+    .optional(),
+  errorMessage: z.string()
+    .optional(),
+  
+  // Local storage metadata
   localOnly: z.boolean()
     .optional(),
   syncedAt: z.number()
