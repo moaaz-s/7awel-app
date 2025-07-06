@@ -4,7 +4,7 @@ import { LocalDatabaseManager, StoreName, TransactionContext } from '../../local
 import { StorageManagerV2 as StorageManager } from '../../../platform/storage/storage-manager-v2';
 import { RepositoryOptions } from '../types';
 
-export abstract class BaseRepository<T extends StoreName, LocalType = any, CoreType = any> {
+export abstract class BaseRepository<T extends StoreName> {
   protected storeName: T;
   
   constructor(
@@ -13,32 +13,6 @@ export abstract class BaseRepository<T extends StoreName, LocalType = any, CoreT
     protected options?: RepositoryOptions
   ) {
     this.storeName = storeName;
-  }
-
-  /**
-   * Convert local database entity to core domain entity
-   * Override in child repositories for specific conversion logic
-   */
-  protected abstract toCore(local: LocalType): CoreType;
-
-  /**
-   * Convert core domain entity to local database entity
-   * Override in child repositories for specific conversion logic
-   */
-  protected abstract toLocal(core: CoreType, extra?: Partial<LocalType>): LocalType;
-
-  /**
-   * Convert array of local entities to core entities
-   */
-  protected toCoreList(locals: LocalType[]): CoreType[] {
-    return locals.map(local => this.toCore(local));
-  }
-
-  /**
-   * Convert array of core entities to local entities
-   */
-  protected toLocalList(cores: CoreType[], extra?: Partial<LocalType>): LocalType[] {
-    return cores.map(core => this.toLocal(core, extra));
   }
   
   /**

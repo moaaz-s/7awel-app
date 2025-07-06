@@ -9,38 +9,28 @@ import type { AssetBalance } from '@/types';
 import { isApiSuccess } from '@/utils/api-utils';
 import { error as logError } from '@/utils/logger';
 
-export class WalletRepository extends BaseRepository<'balance', LocalBalance, AssetBalance> {
+export class WalletRepository extends BaseRepository<'balance'> {
   /**
    * Isolated clock helper so tests can stub Date easily.
    * Keeping it as a method avoids mutating globals in unit tests.
    */
   private readonly now = () => Date.now();
-
-  protected toCore(local: LocalBalance): AssetBalance {
+  private toCore(local: LocalBalance): AssetBalance {
     return local;
   }
 
-  protected toLocal(core: AssetBalance, extra: Partial<LocalBalance> = {}): LocalBalance {
-    // Strip potentially conflicting keys from incoming core object first
-    // (e.g. if backend now returns id / lastUpdated we still want local values)
-    const { id: _discardId, lastUpdated: _discardLu, ...rest } = core as Partial<AssetBalance> & { [k: string]: any };
-
-    return safeMerge({} as LocalBalance, {
-      id: core.symbol, // Use symbol as id for balances
-      lastUpdated: this.now(),
-      ...rest,
-      ...extra,
-    }, balanceSchema) as LocalBalance;
-  }
-
   /**
-   * Helper method for creating LocalBalance with specific id
+   * Convert remote/core balance into validated LocalBalance, ensuring we don't duplicate
+   * the id / lastUpdated keys (they are managed locally).
    */
-  private toLocalWithId(
+  private toLocal(
     core: Omit<AssetBalance, 'id' | 'lastUpdated'> | AssetBalance,
     id: string,
     meta: Partial<LocalBalance> = {}
   ): LocalBalance {
+    // runtime validation & defaults
+    // Strip potentially conflicting keys from incoming core object first
+    // (e.g. if backend now returns id / lastUpdated we still want local values)
     const { id: _discardId, lastUpdated: _discardLu, ...rest } = core as Partial<AssetBalance> & { [k: string]: any };
 
     return safeMerge({} as LocalBalance, {
@@ -66,7 +56,7 @@ export class WalletRepository extends BaseRepository<'balance', LocalBalance, As
       const response = await walletService.getBalance();
       if (isApiSuccess(response) && response.data) {
         // Store locally (id = 'primary')
-        await this.storageManager.local.set('balance', this.toLocalWithId(response.data, 'primary'));
+        await this.storageManager.local.set('balance', this.toLocal(response.data, 'primary'));
         return response.data;
       }
     } catch (err) {
@@ -86,7 +76,7 @@ export class WalletRepository extends BaseRepository<'balance', LocalBalance, As
       if (isApiSuccess(response) && response.data) {
         // Cache
         for (const bal of response.data) {
-          await this.storageManager.local.set('balance', this.toLocalWithId(bal, bal.symbol));
+          await this.storageManager.local.set('balance', this.toLocal(bal, bal.symbol));
         }
         return response.data;
       }
@@ -101,7 +91,7 @@ export class WalletRepository extends BaseRepository<'balance', LocalBalance, As
     const response = await walletService.getBalances();
     if (!isApiSuccess(response) || !response.data) return;
     for (const bal of response.data) {
-      await this.storageManager.local.set('balance', this.toLocalWithId(bal, bal.symbol));
+      await this.storageManager.local.set('balance', this.toLocal(bal, bal.symbol));
     }
   }
 }
