@@ -264,16 +264,18 @@ export class HttpClient {
 
   /** Perform single-flight refresh via onAuthError */
   private async doRefresh(): Promise<void> {
-    if (!this.refreshing) {
-      this.refreshing = (async () => {
-        try {
-          await this.onAuthError()
-        } finally {
-          this.refreshing = null
-        }
-      })()
+    if (this.refreshing) return this.refreshing;
+    
+    this.refreshing = this.performRefresh();
+    return this.refreshing;
+  }
+  
+  private async performRefresh(): Promise<void> {
+    try {
+      await this.onAuthError();
+    } finally {
+      this.refreshing = null;
     }
-    return this.refreshing
   }
 
   clearToken() {

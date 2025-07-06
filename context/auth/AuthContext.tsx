@@ -10,6 +10,7 @@ import { info, error as logError } from '@/utils/logger';
 import { useSessionManagement } from '@/context/auth/hooks/useSessionManagement';
 import { SessionService } from '@/services/session-service';
 import { ErrorCode } from '@/types/errors';
+import { sanitizeErrorMessage } from '@/utils/error-sanitizer';
 
 import { 
   AUTH_STEP_AUTHENTICATED,
@@ -77,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (!ok) {
             logError('[AuthContext] Token expired, logging out', {
-              state,
+              state: state??{},
               isTokenReady,
               ok
             });
@@ -117,7 +118,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
     init();
-  }, [router, dispatch, state, isTokenReady, authInitialized]);
+  }, [router, dispatch, authInitialized]);
 
   // ============================================================================
   // Session Methods
@@ -183,7 +184,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Check for initialization errors
         if (!flowConfig.success) {
           logError('[AuthContext] Failed to initialize flow:', flowConfig.errorCode);
-          dispatch({ type: 'SET_FLOW_ERROR', payload: 'Failed to initialize flow' });
+          // TODO: Localize error message
+          dispatch({ type: 'SET_FLOW_ERROR', payload: sanitizeErrorMessage('Failed to initialize flow') });
           return;
         }
         
@@ -235,7 +237,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const errorMessage = orchestrationResult.errorCode 
           ? t(`errors.${orchestrationResult.errorCode}`) 
           : 'An error occurred';
-        throw new Error(errorMessage);
+        throw new Error(sanitizeErrorMessage(errorMessage));
       }
       
       // Update state with orchestration result
@@ -280,7 +282,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
     } catch (error: any) {
       logError("[AuthContext] Flow advance error:", error);
-      dispatch({ type: 'SET_FLOW_ERROR', payload: error.message || 'An error occurred' });
+      dispatch({ type: 'SET_FLOW_ERROR', payload: sanitizeErrorMessage(error.message || 'An error occurred') });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }

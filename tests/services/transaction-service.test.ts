@@ -45,6 +45,10 @@ describe("services/transaction-service – pure utils", () => {
     const groups = transactionService.groupTransactionsByDate(txs, (d) => d.split("T")[0]);
     expect(groups).toHaveLength(2);
     expect(groups[0].transactions).toHaveLength(2);
+    
+    // Verify newest first sorting
+    expect(groups[0].formattedDate).toBe("2023-06-01");
+    expect(groups[1].formattedDate).toBe("2023-05-31");
   });
 
   it("generatePaymentQR returns parsable string", () => {

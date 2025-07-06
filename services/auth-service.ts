@@ -208,9 +208,7 @@ export const authService = {
     //       whatever we may need as params should be checked for validity
     //       Feel free to add error codes to ErrorCode if necessary.
     
-    const response = await publicHttpClient
-                            .post<ApiResponse<TokenAcquisitionResponse>>
-                            (`${BASE_PATH}/login`, { phone, email });
+    const response = await publicHttpClient.acquireToken(phone, email);
 
     if (response.error || !response.data?.accessToken || !response.data?.refreshToken)
       return handleError(response.error || "Failed to acquire token", response.errorCode || ErrorCode.UNKNOWN);

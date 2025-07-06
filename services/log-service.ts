@@ -8,6 +8,7 @@ import { LogEvent } from "@/platform/data-layer/types";
 
 class LogService {
   private queue: LogEvent[] = [];
+  private flushInterval: NodeJS.Timeout;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -17,7 +18,7 @@ class LogService {
       });
     }
     // Flush logs every minute
-    setInterval(() => {
+    this.flushInterval = setInterval(() => {
       this.flushLogs();
     }, 60 * 1000);
   }
@@ -62,6 +63,14 @@ class LogService {
         return respondOk(undefined);
       }
       return handleError("Failed to flush logs", ErrorCode.UNKNOWN);
+    }
+  }
+
+  /** Clear the log queue and stop flushing */
+  destroy(): void {
+    this.queue = [];
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
     }
   }
 }

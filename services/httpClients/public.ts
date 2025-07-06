@@ -24,8 +24,8 @@ export class PublicHttpClient extends HttpClient {
       return this.post(ENDPOINTS.AUTH.VERIFY_OTP.url, { medium, value, otp })
     }
 
-    public async acquireToken(medium: "phone" | "email", value: string, otp: string): Promise<ApiResponse<TokenAcquisitionResponse>> {
-      return this.post(ENDPOINTS.AUTH.ACQUIRE_TOKEN.url, { medium, value, otp })
+    public async acquireToken(phone: string, email: string): Promise<ApiResponse<TokenAcquisitionResponse>> {
+      return this.post(ENDPOINTS.AUTH.ACQUIRE_TOKEN.url, { phone, email })
     }
   
     public async refresh(): Promise<ApiResponse<TokenAcquisitionResponse>> {

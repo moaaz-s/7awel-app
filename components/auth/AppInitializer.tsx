@@ -15,6 +15,7 @@ const SIGN_UP_ROUTE = '/sign-up';
 const HOME_ROUTE = '/home';
 
 const PUBLIC_AUTH_ROUTES = ['/', SIGN_IN_ROUTE, SIGN_UP_ROUTE];
+const PUBLIC_ROUTES_SET = new Set(PUBLIC_AUTH_ROUTES);
 
 
 // Route configuration for different auth states
@@ -53,11 +54,16 @@ export default function AppInitializer({ children }: { children: React.ReactNode
   // All hooks must be declared at the top, before any conditional logic
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Memoize route type check
+  // Memoize route type check with optimized Set lookup
   const isPublicRoute = useMemo(() => {
     if (!pathname) return false;
+    
+    // Fast O(1) lookup for exact matches
+    if (PUBLIC_ROUTES_SET.has(pathname)) return true;
+    
+    // Check for prefix matches (excluding root route)
     return PUBLIC_AUTH_ROUTES.some(route => 
-      route === '/' ? pathname === '/' : pathname.startsWith(route)
+      route !== '/' && pathname.startsWith(route)
     );
   }, [pathname]);
 

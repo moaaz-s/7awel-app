@@ -106,8 +106,59 @@ describe("transactionService core utils", () => {
       { ...dummyTx, id: "3", createdAt: "2023-05-31T12:00:00Z" },
     ];
     const groups = transactionService.groupTransactionsByDate(txs, (d) => d.split("T")[0]);
+    
     expect(groups).toHaveLength(2);
     expect(groups[0].transactions).toHaveLength(2);
+    
+    // Verify sorting (newest first)
+    expect(groups[0].formattedDate).toBe("2023-06-01");
+    expect(groups[1].formattedDate).toBe("2023-05-31");
+    
+    // Verify original date is preserved
+    expect(groups[0].date).toBe("2023-06-01T12:00:00Z");
+    expect(groups[1].date).toBe("2023-05-31T12:00:00Z");
+    
+    // Verify transactions have formatted createdAt
+    expect(groups[0].transactions[0].createdAt).toBe("2023-06-01");
+    expect(groups[0].transactions[1].createdAt).toBe("2023-06-01");
+  });
+
+  it("groupTransactionsByDate should handle duplicate dates efficiently", () => {
+    // Test optimization with many transactions on same date
+    const formatSpy = vi.fn((d) => d.split("T")[0]);
+    
+    const txs = Array.from({ length: 100 }, (_, i) => ({
+      ...dummyTx,
+      id: `tx-${i}`,
+      createdAt: i < 50 ? "2023-06-01T12:00:00Z" : "2023-06-02T12:00:00Z",
+    }));
+    
+    const groups = transactionService.groupTransactionsByDate(txs, formatSpy);
+    
+    expect(groups).toHaveLength(2);
+    expect(groups[0].transactions).toHaveLength(50);
+    expect(groups[1].transactions).toHaveLength(50);
+    
+    // Verify format function was called efficiently (cached)
+    // Should be called only twice, not 100 times
+    expect(formatSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("groupTransactionsByDate should handle empty array", () => {
+    const groups = transactionService.groupTransactionsByDate([], (d) => d);
+    expect(groups).toHaveLength(0);
+  });
+
+  it("groupTransactionsByDate should maintain transaction integrity", () => {
+    const originalTx = { ...dummyTx, id: "preserve-me", amount: 999 };
+    const groups = transactionService.groupTransactionsByDate([originalTx], (d) => "formatted");
+    
+    expect(groups[0].transactions[0]).toEqual({
+      ...originalTx,
+      createdAt: "formatted", // Only createdAt should be modified
+    });
+    expect(groups[0].transactions[0].id).toBe("preserve-me");
+    expect(groups[0].transactions[0].amount).toBe(999);
   });
 });
 

@@ -163,7 +163,7 @@ class TransactionService {
 
 
   /**
-   * Group transactions by date
+   * Group transactions by date - optimized for performance
    */
   groupTransactionsByDate(
     transactions: Transaction[],
@@ -173,35 +173,49 @@ class TransactionService {
     formattedDate: string
     transactions: Transaction[]
   }[] {
-    const groups: Record<
-      string,
-      {
-        date: string
-        formattedDate: string
-        transactions: Transaction[]
-      }
-    > = {}
+    // Use Map for better performance than Record object
+    const groupsMap = new Map<string, {
+      date: string
+      formattedDate: string
+      transactions: Transaction[]
+    }>();
+    
+    // Cache formatted dates to avoid redundant formatting
+    const formattedDateCache = new Map<string, string>();
 
     transactions.forEach((tx) => {
-      const dateInput = (tx as any).createdAt;
-      const formattedDate = formatDateFn(dateInput)
+      const dateInput = tx.createdAt;
+      
+      // Check cache first to avoid redundant date formatting
+      let formattedDate = formattedDateCache.get(dateInput);
+      if (!formattedDate) {
+        formattedDate = formatDateFn(dateInput);
+        formattedDateCache.set(dateInput, formattedDate);
+      }
 
-      if (!groups[formattedDate]) {
-        groups[formattedDate] = {
+      if (!groupsMap.has(formattedDate)) {
+        groupsMap.set(formattedDate, {
           date: dateInput,
           formattedDate,
           transactions: [],
-        }
+        });
       }
 
-      groups[formattedDate].transactions.push({
+      // Clone transaction with formatted date for display
+      groupsMap.get(formattedDate)!.transactions.push({
         ...tx,
         createdAt: formattedDate,
-      })
-    })
+      });
+    });
 
     // Convert to array and sort by date (newest first)
-    return Object.values(groups).sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
+    // Parse dates once and cache for sorting performance
+    const groupsArray = Array.from(groupsMap.values());
+    return groupsArray.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA; // newest first
+    });
   }
 
   async augmentTransaction(transaction: Transaction): Promise<Transaction> {
