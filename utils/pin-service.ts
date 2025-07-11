@@ -1,7 +1,7 @@
 // utils/pin-service.ts
 // Centralized PIN operations: hashing, storage, attempt tracking, and lockout
 
-import {
+import { 
   hashPin,
   verifyPin
 } from '@/utils/pin-utils';
@@ -17,7 +17,7 @@ import {
   clearPinForgotten,
   setPinForgotten as setPinForgottenFlag
 } from '@/utils/storage';
-import { MAX_PIN_ATTEMPTS, PIN_LOCKOUT_TIME_MS } from '@/constants/auth-constants';
+import { APP_CONFIG } from '@/constants/app-config';
 
 export interface ValidatePinResult {
   valid: boolean;
@@ -41,6 +41,9 @@ export async function setPin(pin: string): Promise<void> {
  * Validate a PIN: verify, track attempts, and lock on max attempts.
  */
 export async function validatePin(pin: string): Promise<ValidatePinResult> {
+  const MAX_PIN_ATTEMPTS = APP_CONFIG.SECURITY.MAX_PIN_ATTEMPTS;
+  const PIN_LOCKOUT_TIME_MS = APP_CONFIG.SECURITY.PIN_LOCKOUT_TIME_MS;
+
   const storedHash = await getPinHash();
   if (!storedHash) {
     return { valid: false };
@@ -82,7 +85,7 @@ export async function isPinSet(): Promise<boolean> {
 /**
  * Returns the lock expiration timestamp or null.
  */
-export function getLockUntil(): Promise<number | null> {
+export async function getLockUntil(): Promise<number | null> {
   return getPinLockUntil();
 }
 

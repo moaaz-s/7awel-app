@@ -9,8 +9,10 @@ import { FingerprintIcon, BackspaceIcon, ArrowRightIcon } from "@/components/ico
 import { isLocked, getLockUntil, validatePin, clearLockout } from '@/utils/pin-service';
 import { useData } from "@/context/DataContext-v2"
 import { Avatar } from "./ui/avatar"
-import { AuthConstants } from "@/constants/auth-constants"
 import { cn } from "@/lib/utils"
+import { APP_CONFIG } from "@/constants/app-config"
+
+
 
 interface PinPadProps {
   welcome_message?: string
@@ -43,9 +45,9 @@ export function PinPad({
   showAction = false,
   actionLabel
 }: PinPadProps) {
-  const pinLength = AuthConstants.PIN_LENGTH;
 
-
+  const pinLength = APP_CONFIG.SECURITY.PIN_MIN_LENGTH;
+  
   const { t, isRTL } = useLanguage()
   const { available: bioAvailable, authenticate } = useBiometrics()
   const [pin, setPin] = useState<string[]>([])

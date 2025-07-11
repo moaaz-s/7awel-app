@@ -1,9 +1,11 @@
 import { Session, SessionStatus } from '@/context/auth/auth-types';
-import { SESSION_TTL_MS } from '@/constants/auth-constants';
+import { APP_CONFIG } from '@/constants/app-config';
 import * as storage from '@/utils/storage';
 import { error as logError } from '@/utils/logger';
 
 export class SessionService {
+
+  private static readonly SESSION_TTL_MS = APP_CONFIG.SECURITY.SESSION_TTL_MS;
 
   /**
    * TODO: Check if we actually need this (it is used in )
@@ -52,7 +54,7 @@ export class SessionService {
     const newSession: Session = {
       isActive: true,
       lastActivity: Date.now(),
-      expiresAt: Date.now() + SESSION_TTL_MS,
+      expiresAt: Date.now() + this.SESSION_TTL_MS,
       pinVerified: true
     };
     await storage.setSession(newSession);
@@ -89,7 +91,7 @@ export class SessionService {
 
     const refreshed: Session = {
       ...session,
-      expiresAt: Date.now() + SESSION_TTL_MS
+      expiresAt: Date.now() + this.SESSION_TTL_MS
     };
     
     return this.updateSession(refreshed);

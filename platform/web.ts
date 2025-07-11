@@ -1,9 +1,9 @@
 // platform/web.ts
-import { loadPlatform } from '@/platform';
 import { info, warn, error as logError } from "@/utils/logger";
 import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
 import { BaseLocalDatabaseManager } from './local-db/local-db-common'
-import { DB_NAME, DB_VERSION } from '@/constants/db';
+import { APP_CONFIG } from '@/constants/app-config';
+
 
 // Platform type export
 export const platformType = "web" as const
@@ -27,6 +27,9 @@ class IndexedDBManager extends BaseLocalDatabaseManager {
   private db: IDBDatabase | null = null;
   
   async init(): Promise<void> {
+    const DB_NAME = APP_CONFIG.STORAGE.DB_NAME;
+    const DB_VERSION = APP_CONFIG.STORAGE.DB_VERSION;
+
     if (this.isInitialized) return;
     
     return new Promise((resolve, reject) => {
@@ -43,7 +46,7 @@ class IndexedDBManager extends BaseLocalDatabaseManager {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
         
-        // Create object stores
+        // Create object stores with updated structure
         if (!db.objectStoreNames.contains('userProfile')) {
           db.createObjectStore('userProfile', { keyPath: 'id' });
         }
@@ -52,12 +55,19 @@ class IndexedDBManager extends BaseLocalDatabaseManager {
           const contactStore = db.createObjectStore('contacts', { keyPath: 'id' });
           contactStore.createIndex('phoneHash', 'phoneHash', { unique: false });
           contactStore.createIndex('isFavorite', 'isFavorite', { unique: false });
+          contactStore.createIndex('hasAccount', 'hasAccount', { unique: false });
         }
         
         if (!db.objectStoreNames.contains('recentTransactions')) {
           const txStore = db.createObjectStore('recentTransactions', { keyPath: 'id' });
-          txStore.createIndex('timestamp', 'timestamp', { unique: false });
+          txStore.createIndex('createdAt', 'createdAt', { unique: false });
           txStore.createIndex('recipientId', 'recipientId', { unique: false });
+          txStore.createIndex('senderId', 'senderId', { unique: false });
+        }
+        
+        if (!db.objectStoreNames.contains('balance')) {
+          const balanceStore = db.createObjectStore('balance', { keyPath: 'id' });
+          balanceStore.createIndex('symbol', 'symbol', { unique: false });
         }
         
         if (!db.objectStoreNames.contains('syncMetadata')) {
@@ -74,11 +84,6 @@ class IndexedDBManager extends BaseLocalDatabaseManager {
           const failedStore = db.createObjectStore('failedSyncs', { keyPath: 'id' });
           failedStore.createIndex('storeName', 'storeName', { unique: false });
           failedStore.createIndex('movedToFailedAt', 'movedToFailedAt', { unique: false });
-        }
-        
-        if (!db.objectStoreNames.contains('balance')) {
-          const balanceStore = db.createObjectStore('balance', { keyPath: 'id' });
-          balanceStore.createIndex('symbol', 'symbol', { unique: false });
         }
       };
     });
@@ -264,13 +269,13 @@ export async function getDeviceInfo() {
 }
 
 export async function secureStoreSet(key: string, value: string) {
-  console.info('[platform/web] secureStoreSet', key, value);
+  info('[platform/web] secureStoreSet', key, value);
   localStorage.setItem(key, value)
 }
 
 export async function secureStoreGet(key: string) {
   const val = localStorage.getItem(key);
-  console.info('[platform/web] secureStoreGet', key, val);
+  info('[platform/web] secureStoreGet', key, val);
   return val;
 }
 
@@ -456,6 +461,30 @@ export async function addNetworkListener(callback: (online: boolean) => void) {
   return () => {
     window.removeEventListener("online", handler)
     window.removeEventListener("offline", handler)
+  }
+}
+
+/**
+ * Get battery information on web platform
+ * Uses the Battery Status API when available
+ * @returns Battery information or null if not available
+ */
+export async function getBatteryInfo(): Promise<{ batteryLevel?: number; charging?: boolean } | null> {
+  try {
+    // Check if Battery API is available
+    const anyNavigator = navigator as any;
+    if (!anyNavigator.getBattery) {
+      return null;
+    }
+
+    const battery = await anyNavigator.getBattery();
+    return {
+      batteryLevel: Math.round(battery.level * 100), // Convert to percentage
+      charging: battery.charging
+    };
+  } catch (error) {
+    warn('[platform/web] Battery API not available:', error);
+    return null;
   }
 }
 

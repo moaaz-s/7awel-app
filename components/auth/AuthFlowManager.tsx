@@ -14,7 +14,8 @@ import {
   AUTH_STEP_AUTHENTICATED, 
   AUTH_STEP_PIN_ENTRY_PENDING, 
   AUTH_STEP_INITIATE,
-  AUTH_STEP_TOKEN_ACQUISITION
+  AUTH_STEP_TOKEN_ACQUISITION,
+  AUTH_STEP_WALLET_CREATION_PENDING
 } from '@/context/auth/flow/flowSteps';
 import { AuthFlowType } from '@/context/auth/flow/flowsOrchestrator';
 import { 
@@ -88,15 +89,15 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
       }
     }, [currentStep, flowState, error]);
 
-    // Guard auto-advance in token acquisition step so it runs only once per entry
+    // Guard auto-advance in token acquisition and wallet creation steps so they run only once per entry
     const hasAutoAdvancedRef = useRef(false);
 
     useEffect(() => {
-      if (currentStep === AUTH_STEP_TOKEN_ACQUISITION && !error && !hasAutoAdvancedRef.current) {
+      if ((currentStep === AUTH_STEP_TOKEN_ACQUISITION || currentStep === AUTH_STEP_WALLET_CREATION_PENDING) && !error && !hasAutoAdvancedRef.current) {
         hasAutoAdvancedRef.current = true;
         advanceFlow({});
       }
-      if (currentStep !== AUTH_STEP_TOKEN_ACQUISITION) {
+      if (currentStep !== AUTH_STEP_TOKEN_ACQUISITION && currentStep !== AUTH_STEP_WALLET_CREATION_PENDING) {
         hasAutoAdvancedRef.current = false;
       }
     }, [advanceFlow, currentStep, error]);
@@ -174,6 +175,7 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
     const getFooterContent = () => {
       if ([
         AUTH_STEP_TOKEN_ACQUISITION,
+        AUTH_STEP_WALLET_CREATION_PENDING,
         AUTH_STEP_AUTHENTICATED,
         AUTH_STEP_PIN_ENTRY_PENDING,
         AUTH_STEP_PIN_SETUP_PENDING,
@@ -378,6 +380,25 @@ export function AuthFlowManager({ flowType, onComplete }: AuthFlowManagerProps) 
               <Button onClick={() => advanceFlow({})}>
                 {t('auth.retry')}
               </Button>
+            </div>
+          );
+        }
+        case AUTH_STEP_WALLET_CREATION_PENDING: {
+          return (
+            <div className="flex flex-col flex-1 items-center justify-center p-6 space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-2">{t('auth.creatingWallet')}</h3>
+                <p className="text-sm text-muted-foreground">{t('auth.creatingWalletSubtitle')}</p>
+              </div>
+              {error && (
+                <div className="text-center space-y-4">
+                  <p className="text-red-500 text-sm">{error}</p>
+                  <Button onClick={() => advanceFlow({})} variant="outline">
+                    {t('auth.retry')}
+                  </Button>
+                </div>
+              )}
             </div>
           );
         }

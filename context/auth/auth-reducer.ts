@@ -13,7 +13,7 @@ import { AuthStatus } from './auth-state-machine';
 import { AUTH_STEP_AUTHENTICATED } from './flow/flowSteps';
 import { AuthFlowType, getFlowTypeSteps, getInitialFlowState } from './flow/flowsOrchestrator';
 import { error as logError, info } from '@/utils/logger';
-import { SESSION_IDLE_TIMEOUT_MS } from '@/constants/auth-constants';
+import { APP_CONFIG } from '@/constants/app-config';
 
 /**
  * Initial authentication state
@@ -31,7 +31,7 @@ export const initialAuthState: AuthState = {
   // Session management
   session: null,
   lastActivity: Date.now(),
-  idleTimeoutMs: SESSION_IDLE_TIMEOUT_MS
+  idleTimeoutMs: APP_CONFIG.SECURITY.SESSION_IDLE_TIMEOUT_MS
 };
 
 /**

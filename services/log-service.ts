@@ -5,6 +5,7 @@ import { error as logError, info } from "@/utils/logger";
 import type { ApiResponse } from "@/types";
 import { ErrorCode } from "@/types/errors";
 import { LogEvent } from "@/platform/data-layer/types";
+import { APP_CONFIG } from "@/constants/app-config";
 
 class LogService {
   private queue: LogEvent[] = [];
@@ -20,7 +21,7 @@ class LogService {
     // Flush logs every minute
     this.flushInterval = setInterval(() => {
       this.flushLogs();
-    }, 60 * 1000);
+    }, APP_CONFIG.LOGGING.FLUSH_INTERVAL_MS);
   }
 
   /** Enqueue an event for logging */

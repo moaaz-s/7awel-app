@@ -1,12 +1,23 @@
 import { HttpClient, ENDPOINTS } from "./base";
 import { getAuthToken } from "@/utils/token-service";
-import type { ApiResponse, Paginated, PaginatedWithTotal, Transaction, CashOutResponse, AssetBalance, Contact } from "@/types";
+import type { ApiResponse, Paginated, PaginatedWithTotal, Transaction, CashOutResponse, AssetBalance, Contact, OtpInitiationResponse } from "@/types";
 import type { SendMoneyRequest, RequestMoneyPayload, CashOutRequest } from "@/types";
 import { LogEvent } from "@/platform/data-layer/types";
+import { OTP_CHANNEL } from "@/context/auth/auth-types";
 
 class PrivateHttpClient extends HttpClient {
   constructor() {
     super(false, getAuthToken); // auth required with token provider
+  }
+
+  /* ---------------- Auth --------------- */
+
+  public async sendOtp(medium: "phone" | "email", value: string, channel: OTP_CHANNEL = OTP_CHANNEL.WHATSAPP, checkIfClaimed: boolean = false): Promise<ApiResponse<OtpInitiationResponse>> {
+    return this.post(ENDPOINTS.AUTH.SEND_OTP.url, { medium, value, channel, checkIfClaimed })
+  }
+
+  public async verifyOtp(medium: "phone" | "email", value: string, otp: string): Promise<ApiResponse<boolean>> {
+    return this.post(ENDPOINTS.AUTH.VERIFY_OTP.url, { medium, value, otp })
   }
 
   /* ---------------- Transactions --------------- */
@@ -41,6 +52,22 @@ class PrivateHttpClient extends HttpClient {
 
   getBalanceOf(symbol: string): Promise<ApiResponse<AssetBalance>> {
     return this.get(ENDPOINTS.WALLET.BALANCE_OF.url.replace(":symbol", symbol));
+  }
+
+  getFeePayer(): Promise<ApiResponse<{ feePayer: string }>> {
+    return this.get(ENDPOINTS.WALLET.GET_FEE_PAYER.url);
+  }
+
+  submitStablecoinTransaction(userSignedTransaction: string): Promise<ApiResponse<{
+    signature?: string;
+  }>> {
+    return this.post(ENDPOINTS.WALLET.SUBMIT_STABLECOIN_TRANSACTION.url, {
+      userSignedTransaction,
+    });
+  }
+
+  createUserWallet(): Promise<ApiResponse<{ walletAddress: string }>> {
+    return this.post(ENDPOINTS.WALLET.CREATE_USER_WALLET.url, {});
   }
 
   /* ---------------- User --------------- */

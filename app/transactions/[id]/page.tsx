@@ -15,6 +15,7 @@ import type { Transaction } from "@/types"
 import { useLanguage } from "@/context/LanguageContext"
 import { toast } from "@/hooks/use-toast"
 import { ContentCardRowItem } from "@/components/ui/cards/content-card-row-item";
+import { ContactDisplay } from "@/components/ui/contact-display";
 import { error as logError } from "@/utils/logger";
 import { ErrorCode } from "@/types/errors";
 
@@ -38,7 +39,7 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
 
       // If not in context, try to fetch from API
       try {
-        const fetchedTx = await transactionService.getTransactionById(id)
+        const fetchedTx = await transactionService.getTransactionById(id, userProfile?.id)
         if (fetchedTx.error) {
           logError("fetchedTx error", fetchedTx.error)
           throw new Error(fetchedTx.errorCode || ErrorCode.TRANSACTION_FETCH_ERROR)
@@ -56,7 +57,7 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
     }
 
     fetchTransaction()
-  }, [id, getTransaction])
+  }, [id, getTransaction, userProfile?.id])
 
   // Handle the note action
   const handleAddNote = () => {
@@ -89,10 +90,12 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
   // Transaction date object for display
   const transactionDate = new Date(transaction.createdAt)
     
+  // Use enhanced transaction structure when available, fallback to legacy
+  const direction = transaction.direction || 'incoming';
+  const currentContact = direction === 'outgoing' ? transaction.recipient : transaction.sender;
+  
   // Format transaction amount with sign and currency symbol
   const { 
-    direction, 
-    displayName,
     amountComponent 
   } = getDisplayProps(transaction, { 
     currentUserId: userProfile?.id,
@@ -100,10 +103,6 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
     returnComponents: true,
     amountComponentClassName: "text-2xl font-semibold"
   });
-  
-  // TODO: Make sure this link has a corresponding page
-  // TODO: Double check this link is correct
-  const contactHref = `/contacts/${direction === "outgoing" ? transaction.recipientId ?? "" : direction === "incoming" ? transaction.senderId ?? "" : displayName.replace(/\s/g, "-").toLowerCase()}`;
 
   const transactionHeader = (
     <div className="flex items-start">
@@ -111,13 +110,18 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
         <div className="flex items-baseline mb-1">
           {amountComponent}
         </div>
-        {/* Make the contact name clickable - using appropriate ID based on transaction type */}
-        <Link 
-          href={contactHref}
-          className="text-base text-primary hover:underline block mb-1"
-        >
-          {displayName}
-        </Link>
+        {/* Use ContactDisplay component for intelligent contact display */}
+        <ContactDisplay
+          contact={currentContact}
+          direction={direction}
+          variant="full"
+          className="text-base block mb-1"
+          isClickable={true}
+          onClick={() => {
+            // TODO: Navigate to contact details when available
+            console.log('Navigate to contact:', currentContact);
+          }}
+        />
         <DateDisplay 
           date={transactionDate} 
           format="datetime" 

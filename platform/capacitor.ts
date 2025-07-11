@@ -1,11 +1,12 @@
 // platform/capacitor.ts
-import { loadPlatform } from '@/platform';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { info, warn, error as logError } from "@/utils/logger";
 import type { LocalDatabase, StoreName, TransactionContext } from './local-db/local-db-types'
-import { BaseLocalDatabaseManager, ContactHelpers, ProfileHelpers, TransactionHelpers, SyncHelpers } from './local-db/local-db-common'
-import { DB_NAME, DB_VERSION } from '@/constants/db';
+import { BaseLocalDatabaseManager } from './local-db/local-db-common'
+import { APP_CONFIG } from '@/constants/app-config';
+
+
 
 // Platform type export
 export const platformType = "capacitor" as const
@@ -40,11 +41,13 @@ class SQLiteManager extends BaseLocalDatabaseManager {
   private db: any = null;
   
   async init(): Promise<void> {
+    const DB_NAME = APP_CONFIG.STORAGE.DB_NAME;
+    const DB_VERSION = APP_CONFIG.STORAGE.DB_VERSION;
+
     if (this.isInitialized) return;
     
     try {
-      // @ts-ignore - Optional dependency for mobile platforms
-      const { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } = await import('@capacitor-community/sqlite');
+      const { CapacitorSQLite, SQLiteConnection } = await import('@capacitor-community/sqlite');
       const sqlite = new SQLiteConnection(CapacitorSQLite);
       
       // Create and open database
@@ -63,6 +66,7 @@ class SQLiteManager extends BaseLocalDatabaseManager {
   }
   
   private async createTables(): Promise<void> {
+    // TODO: Create a sustainable process to creating & updating local database tables
     const tables = [
       `CREATE TABLE IF NOT EXISTS userProfile (
         id TEXT PRIMARY KEY,
@@ -72,6 +76,10 @@ class SQLiteManager extends BaseLocalDatabaseManager {
         phone TEXT NOT NULL,
         avatar TEXT,
         country TEXT,
+        address TEXT,
+        dob TEXT,
+        gender TEXT,
+        walletAddress TEXT,
         lastUpdated INTEGER NOT NULL
       )`,
       
@@ -82,28 +90,72 @@ class SQLiteManager extends BaseLocalDatabaseManager {
         phoneHash TEXT NOT NULL,
         email TEXT,
         avatar TEXT,
+        walletAddress TEXT,
+        initial TEXT NOT NULL,
         lastInteraction INTEGER,
         isFavorite INTEGER DEFAULT 0,
         syncedAt INTEGER NOT NULL,
-        hasAccount INTEGER DEFAULT 0
+        hasAccount INTEGER DEFAULT 0,
+        linkedUserId TEXT
       )`,
       
       `CREATE TABLE IF NOT EXISTS recentTransactions (
         id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
         type TEXT NOT NULL,
         amount REAL NOT NULL,
-        currency TEXT NOT NULL,
+        assetSymbol TEXT DEFAULT 'USD',
         status TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
+        createdAt TEXT NOT NULL,
         recipientId TEXT,
         senderId TEXT,
-        note TEXT
+        note TEXT,
+        syncedAt INTEGER NOT NULL,
+        localOnly INTEGER DEFAULT 0,
+        network TEXT,
+        rawBlockchainData TEXT
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS balance (
+        id TEXT PRIMARY KEY,
+        symbol TEXT NOT NULL,
+        amount REAL NOT NULL,
+        fiatValue REAL,
+        total REAL,
+        available REAL,
+        pending REAL,
+        mint TEXT,
+        decimals INTEGER,
+        lastUpdated INTEGER NOT NULL
       )`,
       
       `CREATE TABLE IF NOT EXISTS syncMetadata (
-        entity TEXT PRIMARY KEY,
-        lastSyncTime INTEGER NOT NULL,
-        syncVersion INTEGER NOT NULL
+        id TEXT PRIMARY KEY,
+        lastSync INTEGER NOT NULL,
+        status TEXT NOT NULL
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS syncQueue (
+        id TEXT PRIMARY KEY,
+        storeName TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        data TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        retryCount INTEGER DEFAULT 0,
+        lastRetryAt INTEGER,
+        error TEXT
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS failedSyncs (
+        id TEXT PRIMARY KEY,
+        storeName TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        data TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        retryCount INTEGER NOT NULL,
+        lastRetryAt INTEGER NOT NULL,
+        error TEXT NOT NULL,
+        movedToFailedAt INTEGER NOT NULL
       )`
     ];
     
@@ -114,8 +166,14 @@ class SQLiteManager extends BaseLocalDatabaseManager {
     // Create indexes
     await this.db.execute('CREATE INDEX IF NOT EXISTS idx_contacts_phoneHash ON contacts(phoneHash)');
     await this.db.execute('CREATE INDEX IF NOT EXISTS idx_contacts_isFavorite ON contacts(isFavorite)');
-    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON recentTransactions(timestamp)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_contacts_hasAccount ON contacts(hasAccount)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_createdAt ON recentTransactions(createdAt)');
     await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_recipientId ON recentTransactions(recipientId)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_senderId ON recentTransactions(senderId)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_balance_symbol ON balance(symbol)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_syncQueue_storeName ON syncQueue(storeName)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_syncQueue_timestamp ON syncQueue(timestamp)');
+    await this.db.execute('CREATE INDEX IF NOT EXISTS idx_failedSyncs_storeName ON failedSyncs(storeName)');
   }
   
   async get<T extends StoreName>(
@@ -271,7 +329,7 @@ class SQLiteManager extends BaseLocalDatabaseManager {
       case 'recentTransactions':
         return 'id';
       case 'syncMetadata':
-        return 'entity';
+        return 'id';
       default:
         return 'id';
     }
@@ -587,5 +645,25 @@ export async function addNetworkListener(callback: (online: boolean) => void): P
       window.removeEventListener("online", handler)
       window.removeEventListener("offline", handler)
     }
+  }
+}
+
+/**
+ * Get battery information on Capacitor platform
+ * Uses the Device plugin to get battery information
+ * @returns Battery information or null if not available
+ */
+export async function getBatteryInfo(): Promise<{ batteryLevel?: number; charging?: boolean } | null> {
+  try {
+    const { Device } = await import('@capacitor/device');
+    const info = await Device.getBatteryInfo();
+    
+    return {
+      batteryLevel: Math.round((info.batteryLevel || 0) * 100), // Convert to percentage
+      charging: info.isCharging || false
+    };
+  } catch (error) {
+    warn('[platform/capacitor] Battery info not available:', error);
+    return null;
   }
 }

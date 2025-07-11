@@ -14,11 +14,21 @@ import { ContactRepository } from '@/platform/data-layer/repositories/contact-re
 import { transactionService } from '@/services/transaction-service';
 import { walletService } from '@/services/wallet-service';
 import { contactService } from '@/services/contact-service';
-import { WalletBalance, Transaction, Contact } from '@/types';
 import { useAuth } from '@/context/auth/AuthContext';
 import { AuthStatus } from '@/context/auth/auth-state-machine';
-import { SYNC_STATUS_UPDATE_INTERVAL_MS } from '@/constants/db';
+import { APP_CONFIG } from '@/constants/app-config';
 import { info, error as logError } from '@/utils/logger';
+import { useCustomWeb3Auth } from '@/context/auth/hooks/useCustomWeb3Auth';
+import type { 
+  Transaction, 
+  Contact, 
+  AssetBalance, 
+  WalletBalance, 
+  CustomWalletInfo,
+  StablecoinTransferParams,
+  TransactionBreakdown
+} from '@/types';
+
 
 interface DataContextValue {
   isInitialized: boolean;
@@ -73,12 +83,43 @@ interface DataContextValue {
   clearAllData: () => Promise<void>;
   formatCurrency: (amount: number, currency?: string) => string; // For backward compatibility
   formatDate: (dateString: string) => string; // For backward compatibility
+  
+  // Web3Auth & Blockchain functionality
+  web3Auth?: {
+    isInitialized: boolean;
+    isConnecting: boolean;
+    isConnected: boolean;
+    walletInfo: CustomWalletInfo | null;
+    error: string | null;
+    isLoading: boolean;
+    connectWallet: (provider?: string) => Promise<CustomWalletInfo>;
+    disconnectWallet: () => Promise<void>;
+    sendStablecoin: (params: StablecoinTransferParams) => Promise<{
+      success: boolean;
+      signature?: string;
+      error?: string;
+      breakdown?: TransactionBreakdown;
+    }>;
+    refreshWalletInfo: () => Promise<CustomWalletInfo | undefined>;
+    getTotalUSDValue: () => number;
+    getStablecoinBalance: (symbol: string) => AssetBalance | null;
+    usdcBalance: AssetBalance | null;
+    usdtBalance: AssetBalance | null;
+    clearError: () => void;
+  };
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const SYNC_STATUS_UPDATE_INTERVAL_MS = APP_CONFIG.DB.SYNC_STATUS_UPDATE_INTERVAL_MS;
+
+  
   const { authStatus, isTokenReady } = useAuth();
+  
+  // Integrate Web3Auth hook
+  // const web3AuthHook = useCustomWeb3Auth();
+  
   const [isInitialized, setIsInitialized] = useState(false);
   const [localDb, setLocalDb] = useState<LocalDatabaseManager | null>(null);
   const [storageManager, setStorageManager] = useState<StorageManager | null>(null);
@@ -173,8 +214,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when authenticated
   useEffect(() => {
-    info('[DataContext] Auth status:', authStatus, 'Initialized:', isInitialized);
+    info('[DataContext] Auth status:', authStatus, 'Initialized:', isInitialized, 'TokenReady:', isTokenReady, 'StorageManager:', !!storageManager);
     if (!isInitialized || !storageManager || !isTokenReady) {
+      console.log('[DataContext] Conditions not met:', { 
+        isInitialized, 
+        hasStorageManager: !!storageManager, 
+        isTokenReady,
+        authStatus 
+      });
       return;
     }
     
@@ -229,25 +276,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Load initial data
   const loadInitialData = async () => {
-    if (!userRepository || !storageManager || !localDb) return;
+    if (!userRepository || !storageManager || !localDb) {
+      console.log('[DataContext] Missing dependencies:', { userRepository: !!userRepository, storageManager: !!storageManager, localDb: !!localDb });
+      return;
+    }
+    
+    console.log('[DataContext] Loading initial data...');
     
     // Load profile
     setIsLoadingProfile(true);
     try {
+      console.log('[DataContext] Fetching user profile...');
       const profile = await userRepository.getProfile();
+      console.log('[DataContext] User profile loaded:', profile);
       setUserProfile(profile);
+    } catch (error) {
+      console.error('[DataContext] Failed to load profile:', error);
     } finally {
       setIsLoadingProfile(false);
     }
     
     // Load balance
+    console.log('[DataContext] Refreshing balance...');
     refreshBalance();
 
     // Load transactions
+    console.log('[DataContext] Loading transactions...');
     loadLocalTransactions();
     refreshTransactions();
 
     // Load contacts
+    console.log('[DataContext] Loading contacts...');
     loadLocalContacts();
     refreshContacts();
     
@@ -304,15 +363,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Refresh balance
   const refreshBalance = async () => {
-    if (!walletRepository) return;
+    if (!walletRepository) {
+      console.log('[DataContext] No wallet repository available');
+      return;
+    }
     try {
+      console.log('[DataContext] Fetching balance...');
       setIsLoadingBalance(true);
       setError(null);
       const bal = await walletRepository.getPrimaryBalance();
+      console.log('[DataContext] Balance fetched:', bal);
       if (bal) {
         setBalance(bal);
       }
     } catch (err) {
+      console.error('[DataContext] Failed to refresh balance:', err);
       setError(err instanceof Error ? err.message : 'Failed to refresh balance');
     } finally {
       setIsLoadingBalance(false);
@@ -321,13 +386,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   // Refresh transactions
   const refreshTransactions = async () => {
-    if (!transactionRepository) return;
+    if (!transactionRepository) {
+      console.log('[DataContext] No transaction repository available');
+      return;
+    }
+    console.log('[DataContext] Fetching transactions...');
     setIsLoadingTransactions(true);
     try {
-      const paginated = await transactionRepository.listRemote(20);
+      const paginated = await transactionRepository.listRemote(20, undefined, userProfile?.id);
+      console.log('[DataContext] Transactions fetched:', paginated);
       setTransactions(paginated.items);
       setTransactionsCursor(paginated.nextCursor || null);
     } catch (error) {
+      console.error('[DataContext] Failed to refresh transactions:', error);
       logError('Failed to refresh transactions:', error);
     } finally {
       setIsLoadingTransactions(false);
@@ -339,7 +410,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!transactionsCursor || isLoadingTransactions || !transactionRepository) return;
     setIsLoadingTransactions(true);
     try {
-      const page = await transactionRepository.listRemote(20, transactionsCursor);
+      const page = await transactionRepository.listRemote(20, transactionsCursor, userProfile?.id);
       setTransactions(prev => [...prev, ...page.items]);
       setTransactionsCursor(page.nextCursor || null);
     } catch (error) {
@@ -352,7 +423,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Get single transaction
   const getTransaction = async (id: string): Promise<Transaction | null> => {
     if (!transactionRepository) return null;
-    return transactionRepository.getTransaction(id);
+    return transactionRepository.getTransaction(id, userProfile?.id);
   };
   
   // Refresh contacts
@@ -442,6 +513,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
   
   const formatCurrency = (amount: number, currency?: string) => {
+    // Always use 'en-US' for consistency in number formatting
+    // This ensures amounts display correctly regardless of RTL/LTR language
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency || "USD",
@@ -502,7 +575,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Utility methods
     clearAllData,
     formatCurrency,
-    formatDate
+    formatDate,
+    
+    // Web3Auth & Blockchain functionality
+    web3Auth: undefined, // web3AuthHook,
   };
   
   return (

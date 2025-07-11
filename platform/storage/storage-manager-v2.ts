@@ -6,7 +6,7 @@ import { userService } from '@/services/user-service';
 import { transactionService } from '@/services/transaction-service';
 import { walletService } from '@/services/wallet-service';
 import { contactService } from '@/services/contact-service';
-import { OFFLINE_SYNC_MAX_RETRIES, OFFLINE_QUEUE_SYNC_INTERVAL_MS } from '@/constants/db';
+import { APP_CONFIG } from '@/constants/app-config';
 import { info, error as logError } from '@/utils/logger';
 import { loadPlatform } from '@/platform';
 
@@ -108,7 +108,7 @@ export class StorageManagerV2 {
                 error: error.message
               };
               
-              if (updatedItem.retryCount < OFFLINE_SYNC_MAX_RETRIES) {
+              if (updatedItem.retryCount < APP_CONFIG.DB.OFFLINE_SYNC_MAX_RETRIES) {
                 // Update in sync queue
                 await tx.set('syncQueue', updatedItem);
               } else {
@@ -261,7 +261,7 @@ export class StorageManagerV2 {
       if (online) {
         this.processSyncQueue().catch(logError);
       }
-    }, OFFLINE_QUEUE_SYNC_INTERVAL_MS);
+    }, APP_CONFIG.DB.OFFLINE_QUEUE_SYNC_INTERVAL_MS);
   }
   
   /**

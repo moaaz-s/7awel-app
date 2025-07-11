@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/auth/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/context/LanguageContext';
-import { SESSION_LOCKOUT_TIMEOUT_WARNING_MS } from '@/constants/auth-constants';
+import { APP_CONFIG } from '@/constants/app-config';
 import { info } from '@/utils/logger';
 
+
 export function IdleWarning() {
+  const SESSION_LOCKOUT_TIMEOUT_WARNING_MS = APP_CONFIG.SECURITY.SESSION_LOCKOUT_WARNING_MS;
+
   const { isIdle, idleTimeRemaining } = useAuth();
   const { t } = useLanguage();
   const [hasShownWarning, setHasShownWarning] = useState(false);

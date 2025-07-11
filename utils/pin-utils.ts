@@ -4,12 +4,10 @@
 // And other utilities related to PIN management
 
 import { info, error as logError } from "@/utils/logger";
-
-const ITERATIONS = 100_000;
-const SALT_BYTES = 16;
+import { APP_CONFIG } from "@/constants/app-config";
 
 function bufToBase64(buf: BufferSource): string {
-  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf as ArrayBuffer);
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
@@ -24,6 +22,9 @@ function base64ToBuf(b64: string): Uint8Array {
 }
 
 export async function hashPin(pin: string): Promise<string> {
+  const ITERATIONS = APP_CONFIG.SECURITY.PIN_HASH_ITERATIONS;
+  const SALT_BYTES = APP_CONFIG.SECURITY.PIN_SALT_BYTES;
+
   const enc = new TextEncoder();
   const pinBytes = enc.encode(pin);
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));

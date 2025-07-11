@@ -1,17 +1,19 @@
+// TODO: Determine how versioning is going to work
+
 // services/http-client.ts
 // Minimal HTTP wrapper so other modules can centralise auth header & token persistence.
 // In mock environment we just expose setToken/clearToken; real network calls are not yet wired.
 
 import { setItem, removeItem } from "@/utils/secure-storage"
 import { info, error as logError } from "@/utils/logger"
-
 import { getDeviceId } from "@/utils/device-fingerprint"
+import { APP_CONFIG } from "@/constants/app-config"
 
 // Use either header or URL prefix for versioning.
-const API_VERSION = "1"
-const BASE_PREFIX = `http://localhost:3000/api/v${API_VERSION}`
 
 function withPrefix(url: string): string {
+  const BASE_PREFIX = `${APP_CONFIG.API.BASE_URL}/api/v${APP_CONFIG.API.VERSION}`
+
   // If absolute (http/https) or already prefixed, return as-is
   if (/^https?:\/\//i.test(url) || url.startsWith(BASE_PREFIX)) {
     return url
@@ -122,6 +124,20 @@ export const ENDPOINTS = {
       url: "/wallet/balances",
       method: "GET",
     },
+    // Stablecoin transaction endpoints
+    GET_FEE_PAYER: {
+      url: "/wallet/fee-payer",
+      method: "GET"
+    },
+    SUBMIT_STABLECOIN_TRANSACTION: {
+      url: "/wallet/submit-stablecoin-transaction",
+      method: "POST"
+    },
+    // Wallet creation for new users
+    CREATE_USER_WALLET: {
+      url: "/wallet/create-user-wallet",
+      method: "POST"
+    },
   },
   CONTACTS: {
     GET: {
@@ -218,7 +234,7 @@ export class HttpClient {
   }
 
   private makeRequestInit(method: HttpMethod, body?: unknown): RequestInit {
-    let headers: Record<string, string> = {}
+    const headers: Record<string, string> = {}
   
     if (this.deviceId)
       headers['X-Device-Fingerprint'] = this.deviceId

@@ -1,9 +1,10 @@
 import React, { JSX } from "react";
 import type { Transaction, Contact } from "@/types";
+import type { TransactionDirection } from "@/platform/validators/schemas-zod";
 import { SendIcon, ReceiveIcon, CashOutIcon } from "@/components/icons/finance-icons";
 import { contactResolver } from "@/platform/local-db/local-db-common";
 
-export type TxDirection = "incoming" | "outgoing";
+export type TxDirection = TransactionDirection;
 
 /**
  * Determine transaction direction relative to the current user.

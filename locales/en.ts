@@ -131,6 +131,9 @@ export const en = {
     pinSetupSubtitle: "Create a PIN to protect your wallet",
     emailEntryTitle: "Enter your email",
     emailEntrySubtitle: "We'll send a verification link to this email",
+    creatingWallet: "Creating your wallet",
+    creatingWalletSubtitle: "Setting up your secure wallet...",
+    retry: "Retry",
     initializing: "Initializing...",
     loading: "Loading...",
     idle: {
@@ -176,6 +179,12 @@ export const en = {
     exchange: "Exchange",
     details: "Details",
     more: "More",
+  },
+  contact: {
+    unknownSender: "From unknown contact",
+    unknownRecipient: "To unknown contact",
+    unknown: "Unknown contact",
+    recentContacts: "Recent contacts",
   },
   transaction: {
     today_label: "Today",

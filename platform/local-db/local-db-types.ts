@@ -9,6 +9,10 @@ export interface LocalTransaction extends Transaction {
   syncedAt: number;
   /** Mark record as not yet pushed to backend */
   localOnly?: boolean;
+  /** Blockchain network (e.g., 'solana-mainnet', 'solana-devnet') */
+  network?: string;
+  /** Raw blockchain transaction data */
+  rawBlockchainData?: any;
 }
 
 export interface LocalUser extends User {
@@ -17,17 +21,35 @@ export interface LocalUser extends User {
 }
 
 export interface LocalContact extends Contact {
-  phoneHash: string;
-  isFavorite: boolean;
+  /** Timestamp when contact was last synced */
   syncedAt: number;
-  hasAccount?: boolean;
+  /** Whether contact is marked as favorite */
+  isFavorite: boolean;
+  /** Timestamp of last interaction */
   lastInteraction?: number;
+  /** Contact avatar URL */
   avatar?: string;
+  /** Whether contact has a 7awel account */
+  hasAccount?: boolean;
+  /** User ID if contact has a 7awel account */
+  linkedUserId?: string;
 }
 
 export interface LocalBalance extends AssetBalance {
+  /** Unique identifier for the balance record */
   id: string;
+  /** Timestamp when balance was last updated */
   lastUpdated: number;
+  /** Blockchain mint address (for tokens) - now part of AssetBalance */
+  // mint?: string; // Already in AssetBalance
+  /** Token decimals (SOL=9, stablecoins=6) - now part of AssetBalance */  
+  // decimals?: number; // Already in AssetBalance
+  /** Available balance for spending */
+  available?: number;
+  /** Pending balance (locked in transactions) */
+  pending?: number;
+  /** Total balance (available + pending) */
+  total?: number;
 }
 
 export interface LocalDatabase {

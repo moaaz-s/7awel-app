@@ -136,6 +136,9 @@ export const ar = {
     pinSetupSubtitle: "إنشاء رمز حماية لتأمين محفظتك",
     emailEntryTitle: "أدخل بريدك الإلكتروني",
     emailEntrySubtitle: "سنرسل رابط تحقق إلى هذا البريد الإلكتروني",
+    creatingWallet: "إنشاء محفظتك",
+    creatingWalletSubtitle: "جاري إعداد محفظتك الآمنة...",
+    retry: "إعادة المحاولة",
     initializing: "جاري التهيئة...",
     loading: "جاري التحميل...",
     idle: {
@@ -179,6 +182,12 @@ export const ar = {
     cashOut: "سحب نقدي",
     points: "النقاط",
     home: "الرئيسية",
+  },
+  contact: {
+    unknownSender: "من جهة اتصال غير معروفة",
+    unknownRecipient: "إلى جهة اتصال غير معروفة", 
+    unknown: "جهة اتصال غير معروفة",
+    recentContacts: "جهات الاتصال الأخيرة",
   },
   transaction: {
     today_label: "اليوم",

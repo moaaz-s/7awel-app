@@ -1,13 +1,17 @@
 // utils/error-sanitizer.ts
 // Utility for sanitizing error messages to prevent XSS attacks
 
+import { APP_CONFIG } from '@/constants/app-config';
+
+const MAX_ERROR_MESSAGE_LENGTH = 150
+
 /**
  * Sanitize error message to remove potential XSS vectors
  * @param message - The error message to sanitize
- * @param maxLength - Maximum length of the message (default: 500)
+ * @param maxLength - Maximum length of the message
  * @returns Sanitized error message
  */
-export function sanitizeErrorMessage(message: string | null | undefined, maxLength: number = 500): string {
+export function sanitizeErrorMessage(message: string | null | undefined, maxLength: number = MAX_ERROR_MESSAGE_LENGTH): string {
   if (!message) return 'An error occurred';
   
   // Convert to string and limit length

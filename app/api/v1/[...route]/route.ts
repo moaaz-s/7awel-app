@@ -38,13 +38,51 @@ function generateTransactions(): Transaction[] {
     const status = TRANSACTION_STATUSES[getRandomInt(0, TRANSACTION_STATUSES.length - 1)];
     const amount = parseFloat((Math.random() * 1000).toFixed(2));
     const id = crypto.randomUUID();
-    return { id, name: type, amount, createdAt: new Date(ts).toISOString(), type, status };
+    const reference = `REF_${id.slice(0, 8)}`;
+    const fee = type === 'transfer' ? parseFloat((amount * 0.01).toFixed(2)) : 0; // 1% fee for transfers
+    const direction = Math.random() > 0.5 ? 'incoming' : 'outgoing';
+    
+    // Random contact assignment for enhanced structure
+    const contactNames = ['Ahmed Hassan', 'Fatima Al-Zahra', 'Omar Khayyam', 'Layla Majnun', 'Khalid Ibn Walid'];
+    const contactPhones = ['+963912345678', '+963987654321', '+963955123456', '+963944987654', '+963933456789'];
+    const contactHashes = ['hash_963912345678', 'hash_963987654321', 'hash_963955123456', 'hash_963944987654', 'hash_963933456789'];
+    
+    const contactIndex = getRandomInt(0, contactNames.length - 1);
+    const contact = {
+      name: contactNames[contactIndex],
+      phone: contactPhones[contactIndex],
+      phoneHash: contactHashes[contactIndex],
+      isUnknown: false
+    };
+    
+    return { 
+      id, 
+      reference,
+      amount, 
+      assetSymbol: 'USD',
+      fee,
+      createdAt: new Date(ts).toISOString(), 
+      updatedAt: new Date(ts).toISOString(),
+      type, 
+      status,
+      direction,
+      // Enhanced contact structure
+      sender: direction === 'incoming' ? contact : undefined,
+      recipient: direction === 'outgoing' ? contact : undefined,
+      // Legacy fields for backward compatibility
+      senderName: direction === 'incoming' ? contact.name : undefined,
+      recipientName: direction === 'outgoing' ? contact.name : undefined,
+      senderPhoneHash: direction === 'incoming' ? contact.phoneHash : undefined,
+      recipientPhoneHash: direction === 'outgoing' ? contact.phoneHash : undefined,
+      syncedAt: Date.now()
+    };
   });
 }
-let transactions: Transaction[] = generateTransactions();
+const transactions: Transaction[] = generateTransactions();
 
 // ---------------------------------------------------------------------------
 // Contacts mock store (in-memory)
+// Note: Use 'npm run setup-test-data' to populate with dummy contacts for testing
 // ---------------------------------------------------------------------------
 let contacts: Contact[] = [];
 
@@ -95,7 +133,7 @@ export async function GET(
       if (typeFilter) filtered = filtered.filter((t) => t.type === typeFilter);
       if (startDate) filtered = filtered.filter((t) => new Date(t.createdAt) >= new Date(startDate));
       if (endDate) filtered = filtered.filter((t) => new Date(t.createdAt) <= new Date(endDate));
-      if (search) filtered = filtered.filter((t) => t.id.includes(search) || t.name.toLowerCase().includes(search));
+      if (search) filtered = filtered.filter((t) => t.id.includes(search) || t.reference.toLowerCase().includes(search));
       filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       let startIndex = 0;
       if (cursor) {
@@ -176,6 +214,30 @@ export async function GET(
     }
   }
 
+  // Promotions GET endpoint
+  if (resource === 'promotions') {
+    // Mock promotions data matching the promotion schema
+    const mockPromotions = [
+      {
+        id: '1',
+        title: 'Welcome Bonus',
+        description: 'Get $10 when you send your first transaction',
+        imageUrl: '/onboarding/1.png',
+        linkUrl: '/send',
+        backgroundColor: '#6366f1'
+      },
+      {
+        id: '2', 
+        title: 'Refer Friends',
+        description: 'Earn $5 for every friend you invite',
+        imageUrl: '/onboarding/2.png',
+        linkUrl: '/invite',
+        backgroundColor: '#06b6d4'
+      }
+    ];
+    return NextResponse.json(respondOk(mockPromotions));
+  }
+
   // User GET endpoint
   if (resource === 'user' && !action) {
     const user = {
@@ -187,7 +249,8 @@ export async function GET(
       address: '123 Main St',
       country: 'USA',
       dob: '1990-01-01',
-      gender: 'other'
+      gender: 'other',
+      walletAddress: 'SatoshiWallet123456789ABCDEFGHIJKLMNOPQR' // Mock wallet address for existing user
     };
     const settings = {
       language: 'en',
@@ -212,33 +275,75 @@ export async function GET(
   // Wallet endpoints
   if (resource === 'wallet') {
     if (action === 'balance') {
-      // Return primary balance
+      // Return primary balance with updated AssetBalance structure
       const primaryBalance: AssetBalance = {
+        id: 'primary-usd-balance',
         symbol: 'USD',
-        total: 1000.00,
-        available: 950.50,
-        pending: 49.50
+        amount: 950.50,
+        fiatValue: 950.50,
+        lastUpdated: Date.now(),
+        decimals: 2 // USD has 2 decimal places
       };
       return NextResponse.json(respondOk(primaryBalance));
     }
     
     if (action === 'balances') {
-      // Return all balances
+      // Return all balances with updated AssetBalance structure
       const balances: AssetBalance[] = [
         {
+          id: 'primary-usd-balance',
           symbol: 'USD',
-          total: 1000.00,
-          available: 950.50,
-          pending: 49.50
+          amount: 950.50,
+          fiatValue: 950.50,
+          lastUpdated: Date.now(),
+          decimals: 2
         },
         {
+          id: 'secondary-eur-balance',
           symbol: 'EUR',
-          total: 850.00,
-          available: 850.00,
-          pending: 0
+          amount: 850.00,
+          fiatValue: 850.00 * 1.1, // EUR to USD conversion
+          lastUpdated: Date.now(),
+          decimals: 2
+        },
+        // Mock stablecoin balances for testing
+        {
+          id: 'devnet-usdc-balance',
+          symbol: 'USDC',
+          amount: 100.00,
+          fiatValue: 100.00,
+          lastUpdated: Date.now(),
+          mint: 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr', // USDC Devnet
+          decimals: 6
+        },
+        {
+          id: 'devnet-usdt-balance',
+          symbol: 'USDT',
+          amount: 50.00,
+          fiatValue: 50.00,
+          lastUpdated: Date.now(),
+          mint: 'EsPKhGTMf3bGoy4Qm7pCv3UCcWqAmbC1UGHBTDxRjjD4', // USDT Devnet
+          decimals: 6
         }
       ];
       return NextResponse.json(respondOk(balances));
+    }
+
+    // New wallet endpoints for Web3Auth integration
+    if (action === 'fee-payer') {
+      // Mock fee payer address (in real implementation, this comes from backend wallet)
+      const feePayer = 'FeePayer1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ123';
+      return NextResponse.json(respondOk({ feePayer }));
+    }
+
+    if (action === 'create-user-wallet') {
+      // Mock wallet creation (in real implementation, this creates a new wallet mapping)
+      const walletAddress = `UserWallet${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
+      return NextResponse.json(respondOk({ 
+        walletAddress,
+        created: true,
+        timestamp: Date.now()
+      }));
     }
   }
 
@@ -288,7 +393,7 @@ export async function POST(
       // otp response (only non-valid 000001)
       return NextResponse.json(respondOk({ valid: true }));
     }
-    if (action === 'login') {
+    if (action === 'login' || action === 'acquire-token') {
       const { phone, email } = body;
       if (!phone && !email) {
         return NextResponse.json(
@@ -351,8 +456,8 @@ export async function PUT(
   const body = await request.json().catch(() => ({}));
 
   // Transactions POST endpoints
-  // Validate POST bodies
   if (resource === 'transactions') {
+    // send transaction
     if (action === 'send') {
       const { recipientId, amount } = body;
       if (!recipientId) {
@@ -361,7 +466,37 @@ export async function PUT(
       if (typeof amount !== 'number' || amount <= 0) {
         return NextResponse.json(handleError('Invalid amount', ErrorCode.INVALID_AMOUNT, 400), { status: 400 });
       }
+      
+      const recipientContact = contacts.find(c => c.id === recipientId);
+      const tx: Transaction = { 
+        id: crypto.randomUUID(), 
+        reference: `TXN_${Date.now()}`,
+        amount: amount, 
+        assetSymbol: 'USD',
+        fee: parseFloat((amount * 0.01).toFixed(2)), // 1% fee
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(), 
+        type: 'transfer', 
+        status: 'completed',
+        direction: 'outgoing',
+        // Enhanced contact structure
+        recipient: recipientContact ? {
+          name: recipientContact.name,
+          phone: recipientContact.phone,
+          phoneHash: recipientContact.phoneHash,
+          isUnknown: false
+        } : undefined,
+        // Legacy fields for backward compatibility
+        recipientName: recipientContact?.name,
+        recipientPhoneHash: recipientContact?.phoneHash,
+        note: body.note,
+        syncedAt: Date.now()
+      };
+      transactions.unshift(tx);
+      return NextResponse.json(respondOk(tx));
     }
+    
+    // request money (return QR)
     if (action === 'request') {
       const { contactId, amount } = body;
       if (!contactId) {
@@ -370,7 +505,13 @@ export async function PUT(
       if (typeof amount !== 'number' || amount <= 0) {
         return NextResponse.json(handleError('Invalid amount', ErrorCode.INVALID_AMOUNT, 400), { status: 400 });
       }
+      
+      const qrData: QRData = { userId: contactId, amount: amount, timestamp: Date.now() };
+      const qrString = JSON.stringify(qrData);
+      return NextResponse.json(respondOk({ qrData, qrString }));
     }
+    
+    // cash-out stub
     if (action === 'cashout') {
       const { method, amount } = body;
       if (!method) {
@@ -379,31 +520,28 @@ export async function PUT(
       if (typeof amount !== 'number' || amount <= 0) {
         return NextResponse.json(handleError('Invalid amount', ErrorCode.INVALID_AMOUNT, 400), { status: 400 });
       }
+      
+      const cashOut: CashOutResponse = { success: true, reference: crypto.randomUUID(), amount: amount, fee: parseFloat((amount * 0.5 / 100).toFixed(2)), method: method || 'agent', date: new Date().toISOString() };
+      return NextResponse.json(respondOk(cashOut));
     }
   }
 
-  // Transactions POST endpoints
-  if (resource === 'transactions') {
-    // send transaction
-    if (action === 'send') {
-      const tx: Transaction = { id: crypto.randomUUID(), name: 'transfer', amount: body.amount, date: new Date().toISOString(), type: 'transfer', status: 'completed' };
-      transactions.unshift(tx);
-      return NextResponse.json(respondOk(tx));
-    }
-    // notify
-    if (action === 'notify') {
-      return NextResponse.json(respondOk(null));
-    }
-    // request money (return QR)
-    if (action === 'request') {
-      const qrData: QRData = { userId: body.contactId, amount: body.amount, timestamp: Date.now() };
-      const qrString = JSON.stringify(qrData);
-      return NextResponse.json(respondOk({ qrData, qrString }));
-    }
-    // cash-out stub
-    if (action === 'cashout') {
-      const cashOut: CashOutResponse = { success: true, reference: crypto.randomUUID(), amount: body.amount, fee: parseFloat((body.amount * 0.5 / 100).toFixed(2)), method: body.method || 'agent', date: new Date().toISOString() };
-      return NextResponse.json(respondOk(cashOut));
+
+
+  // Wallet POST endpoints
+  if (resource === 'wallet') {
+    if (action === 'submit-stablecoin-transaction') {
+      const { userSignedTransaction } = body;
+      if (!userSignedTransaction) {
+        return NextResponse.json(
+          handleError('User signed transaction is required', ErrorCode.VALIDATION_ERROR, 400),
+          { status: 400 }
+        );
+      }
+
+      // Mock successful submission (in real implementation, this completes the transaction on blockchain)
+      const signature = `SIG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      return NextResponse.json(respondOk({ signature }));
     }
   }
 
@@ -417,8 +555,11 @@ export async function PUT(
       id: c.id || crypto.randomUUID(),
       name: c.name,
       phone: c.phone || '',
+      phoneHash: `hash_${c.phone || Math.random()}`,
       email: c.email || undefined,
       initial: (c.name || '').charAt(0).toUpperCase(),
+      syncedAt: Date.now(),
+      isFavorite: false,
     }));
     contacts.push(...created);
     return NextResponse.json(respondOk({ success: true, created: created.length }));
@@ -429,6 +570,24 @@ export async function PUT(
       return NextResponse.json(respondOk(body));
     }
     if (!action) {
+      // Allow wallet address updates separately from profile completion
+      if (body.walletAddress && Object.keys(body).length === 1) {
+        const updatedUser = {
+          id: '1',
+          firstName: 'Satoshi',
+          lastName: 'Nakamoto',
+          phone: '1234567890',
+          email: 'satoshi@nakamoto.money',
+          address: '123 Main St',
+          country: 'USA',
+          dob: '1990-01-01',
+          gender: 'other',
+          walletAddress: body.walletAddress
+        };
+        return NextResponse.json(respondOk(updatedUser));
+      }
+
+      // For profile completion, require minimum fields
       const { firstName, lastName } = body;
       if (!firstName || !lastName) {
         return NextResponse.json(
@@ -436,7 +595,21 @@ export async function PUT(
           { status: 400 }
         );
       }
-      return NextResponse.json(respondOk(body));
+      
+      // Return updated user with walletAddress if provided
+      const updatedUser = {
+        id: '1',
+        firstName,
+        lastName,
+        phone: '1234567890',
+        email: 'satoshi@nakamoto.money',
+        address: body.address || '123 Main St',
+        country: body.country || 'USA',
+        dob: body.dob || '1990-01-01',
+        gender: body.gender || 'other',
+        ...(body.walletAddress && { walletAddress: body.walletAddress })
+      };
+      return NextResponse.json(respondOk(updatedUser));
     }
   }
 

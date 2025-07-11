@@ -1,11 +1,12 @@
 import { isApiSuccess } from "@/utils/api-utils"
 import type { Transaction, TransactionType, Contact, QRData, RequestMoneyPayload } from "@/types"
+import type { TransactionContact, TransactionDirection } from "@/platform/validators/schemas-zod"
 import { info, warn, error as logError } from "@/utils/logger"
 import { privateHttpClient } from "@/services/httpClients/private"
 import { handleError, respondOk } from "@/utils/api-utils"
 import type { ApiResponse, Paginated, TransactionFilters, PaginationRequest, CashOutResponse } from "@/types"
 import { ErrorCode } from "@/types/errors"
-import { contactResolver } from "@/platform/local-db/local-db-common"
+import { contactResolver, ContactHelpers } from "@/platform/local-db/local-db-common"
 
 // import { memoryCache } from "@/utils/cache"
 
@@ -114,8 +115,12 @@ class TransactionService {
     return { qrData, qrString }
   }
   /**
-   * Send money to a recipient
-   * TODO: Use web3auth service here
+   * Send money to a recipient with simplified fee handling
+   * 
+   * For stablecoin transfers: Uses Portals virtual accounts for automatic fee handling
+   * For traditional transfers: Uses API-based transfer
+   * 
+   * Note: Portals virtual accounts eliminate the need for backend fee subsidization
    */
   async sendMoney(
     recipient: Contact,
@@ -123,7 +128,7 @@ class TransactionService {
     balance: number,
     note?: string,
   ): Promise<TransactionResult> {
-    // Validate amount
+    // Validate amount (no need to account for fees as Portals handles them)
     const validation = this.validateAmount(amount, balance)
     if (!validation.isValid) {
       return { success: false, error: validation.error }
@@ -132,8 +137,24 @@ class TransactionService {
     try {
       info(`[TransactionService] Sending ${amount} to ${recipient.name}`)
       
-      // Create transaction via API
-      const response = await privateHttpClient.sendMoney({ contactId: recipient.id, amount, note });
+      // For stablecoin transfers with wallet integration, use Portals virtual accounts
+      if (recipient.walletAddress) {
+        info(`[TransactionService] Using Portals virtual accounts for stablecoin transfer`)
+        return await this.sendStablecoinWithPortalsVirtualAccounts(
+          recipient.walletAddress,
+          'USDC', // Default to USDC, can be made configurable
+          amount,
+          note
+        );
+      }
+      
+      // For traditional API-based transfers
+      info(`[TransactionService] Using API-based transfer`)
+      const response = await privateHttpClient.sendMoney({ 
+        contactId: recipient.id, 
+        amount, 
+        note 
+      });
       
       if (!isApiSuccess(response)) {
         return {
@@ -142,16 +163,10 @@ class TransactionService {
         }
       }
 
-      if (response.data) {
-        const transaction = response.data as Transaction;
-        
-        return {
-          success: true,
-          transaction,
-        }
-      }
-
-      return { success: true }
+      return {
+        success: true,
+        transaction: response.data as Transaction,
+      };
     } catch (error) {
       logError("Send money error:", error)
       return {
@@ -159,6 +174,92 @@ class TransactionService {
         error: ErrorCode.TRANSACTION_FAILED,
       }
     }
+  }
+
+  /**
+   * Send stablecoin with Portals virtual accounts fee handling
+   * This method handles the complete flow: prepare -> user sign (web3auth) -> Portals fee handling -> submit
+   * 
+   * Note: Portals virtual accounts handle fee payments on behalf of users, 
+   * simplifying the flow by removing backend fee subsidization
+   */
+  async sendStablecoinWithPortalsVirtualAccounts(
+    recipientAddress: string,
+    tokenMint: string,
+    amount: number,
+    note?: string,
+  ): Promise<TransactionResult> {
+    try {
+      // Import custom Web3Auth service
+      // TODO: Replace with Portals signing service when ready
+      const { customWeb3AuthService } = await import('./custom-web3auth-service');
+      
+      // Prepare transaction for user signing
+      // Note: No need to handle fees here as Portals virtual accounts will cover them
+      const preparedTx = await customWeb3AuthService.prepareStablecoinTransfer({
+        toAddress: recipientAddress,
+        tokenMint,
+        amount,
+        memo: note,
+        // Skip fee calculations as Portals handles this
+        skipFeeCalculation: true,
+      });
+
+      // Validate transaction before showing to user
+      if (!preparedTx.isValid) {
+        return {
+          success: false,
+          error: `Transaction validation failed: ${preparedTx.validationErrors.join(', ')}`,
+        };
+      }
+
+      // User signs the transaction with web3auth
+      // TODO: Replace with Portals virtual accounts signing when ready
+      const userSignedTransaction = await customWeb3AuthService.signTransaction(preparedTx.transaction);
+
+      // Submit transaction with Portals virtual accounts fee handling
+      // Portals virtual accounts automatically handle fee payments
+      const submitResponse = await privateHttpClient.submitStablecoinTransaction(
+        userSignedTransaction.serialize({ 
+          requireAllSignatures: false 
+        }).toString('base64')
+      );
+
+      if (!submitResponse.data?.signature) {
+        return {
+          success: false,
+          error: 'Failed to submit transaction with Portals',
+        };
+      }
+
+      // Transaction is automatically recorded by Portals/backend
+      // No need for separate recording step
+      return {
+        success: true,
+        reference: submitResponse.data.signature,
+        // Transaction data will be available through normal transaction listing
+      };
+    } catch (error) {
+      logError("Send stablecoin with Portals virtual accounts error:", error);
+      return {
+        success: false,
+        error: ErrorCode.TRANSACTION_FAILED,
+      };
+    }
+  }
+
+  /**
+   * @deprecated Use sendStablecoinWithPortalsVirtualAccounts instead
+   * Legacy method for partial signing flow - kept for backward compatibility
+   */
+  async sendStablecoinWithPartialSigning(
+    recipientAddress: string,
+    tokenMint: string,
+    amount: number,
+    note?: string,
+  ): Promise<TransactionResult> {
+    // Redirect to new Portals-based method
+    return this.sendStablecoinWithPortalsVirtualAccounts(recipientAddress, tokenMint, amount, note);
   }
 
 
@@ -218,12 +319,65 @@ class TransactionService {
     });
   }
 
-  async augmentTransaction(transaction: Transaction): Promise<Transaction> {
+  /**
+   * Determine transaction direction relative to the current user
+   */
+  private getDirection(transaction: Transaction, currentUserId?: string): TransactionDirection {
+    switch (transaction.type) {
+      case "deposit":
+        return "incoming";
+      case "withdraw":
+        return "outgoing";
+      case "transfer": {
+        if (!currentUserId) return "incoming"; // default when unknown
+        if (transaction.senderId === currentUserId) return "outgoing";
+        if (transaction.recipientId === currentUserId) return "incoming";
+        return "incoming";
+      }
+    }
+    return "incoming"; // Safe default
+  }
+
+  /**
+   * Create a TransactionContact object from phone hash
+   * Backend only sends phoneHash, frontend resolves name and phone on display
+   */
+  private createTransactionContact(phoneHash?: string): TransactionContact {
+    if (!phoneHash) {
+      return { 
+        isUnknown: true 
+      };
+    }
+
+    // Backend only provides phoneHash
+    // Name and phone will be resolved by ContactDisplay component when needed
+    return {
+      phoneHash,
+      isUnknown: false
+    };
+  }
+
+  /**
+   * Augment transaction with enhanced contact objects and direction
+   * Creates sender/recipient objects with phoneHash (name/phone resolved on display)
+   */
+  async augmentTransaction(transaction: Transaction, currentUserId?: string): Promise<Transaction> {
+    // Calculate direction
+    const direction = this.getDirection(transaction, currentUserId);
+    
+    // Create enhanced contact objects (only phoneHash from backend)
+    const sender = this.createTransactionContact(transaction.senderPhoneHash);
+    const recipient = this.createTransactionContact(transaction.recipientPhoneHash);
+    
     return {
       ...transaction,
+      direction,
+      sender,
+      recipient,
+      // Keep legacy fields for backward compatibility
       recipientName: contactResolver.resolveDisplayName(transaction.recipientPhoneHash, ""),
       senderName: contactResolver.resolveDisplayName(transaction.senderPhoneHash, "")
-    }
+    };
   }
 
   /**
@@ -233,6 +387,7 @@ class TransactionService {
   async listTransactions(
     filters?: TransactionFilters,
     pagination?: PaginationRequest,
+    currentUserId?: string
   ): Promise<ApiResponse<Paginated<Transaction>>> {
     try {
       // For now, call apiService.getTransactions with pagination only
@@ -241,7 +396,7 @@ class TransactionService {
       if (listError || !listData) {
         return handleError("Failed to list transactions", ErrorCode.TRANSACTION_LIST_FAILED);
       }
-      const transactions = await Promise.all(listData.items.map(tx => this.augmentTransaction(tx)));
+      const transactions = await Promise.all(listData.items.map(tx => this.augmentTransaction(tx, currentUserId)));
       
       if (transactions && transactions.length > 0) {
         // Apply client-side filters if needed
@@ -294,7 +449,7 @@ class TransactionService {
    * Get a single transaction by ID
    * Now uses named API endpoint and augments data to match listTransactions() structure
    */
-  async getTransactionById(id: string): Promise<ApiResponse<Transaction | undefined>> {
+  async getTransactionById(id: string, currentUserId?: string): Promise<ApiResponse<Transaction | undefined>> {
     if (!id) return handleError("Transaction ID is required", ErrorCode.VALIDATION_ERROR)
     
     try {
@@ -311,7 +466,7 @@ class TransactionService {
       
       // Augment the transaction data to match the structure from listTransactions()
       // This ensures consistency between single transaction fetch and list fetch
-      const transaction = await this.augmentTransaction(response.data);
+      const transaction = await this.augmentTransaction(response.data, currentUserId);
 
       
       return respondOk(transaction);

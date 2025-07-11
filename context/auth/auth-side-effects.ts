@@ -17,12 +17,14 @@ import {
   AUTH_STEP_EMAIL_ENTRY_PENDING,
   AUTH_STEP_EMAIL_OTP_PENDING,
   AUTH_STEP_USER_PROFILE_PENDING,
+  AUTH_STEP_WALLET_CREATION_PENDING,
   AUTH_STEP_PIN_SETUP_PENDING,
   AUTH_STEP_PIN_ENTRY_PENDING,
   AUTH_STEP_TOKEN_ACQUISITION
 } from './flow/flowSteps';
 import { AuthFlowState, FlowPayload, OTP_CHANNEL } from './auth-types';
 import { AuthFlowType } from './flow/flowsOrchestrator';
+import { privateHttpClient } from '@/services/httpClients/private';
 
 // Side effect result type
 export type SideEffectResult = {
@@ -191,21 +193,57 @@ export async function executeStepSideEffects(
         };
       }
       
+      case AUTH_STEP_WALLET_CREATION_PENDING: {
+        info('[SideEffects] Creating wallet for authenticated user');
+        const response = await privateHttpClient.createUserWallet();
+        
+        if (response.error || !response.data?.walletAddress) {
+          logError('[SideEffects] Wallet creation failed:', response);
+          return { 
+            success: false, 
+            errorCode: ErrorCode.WALLET_CONNECTION_FAILED // Using existing error code
+          };
+        }
+        
+        // Store wallet address in user profile for future use
+        try {
+          await userService.updateUser({ 
+            walletAddress: response.data.walletAddress 
+          });
+          info('[SideEffects] Wallet address stored in user profile');
+        } catch (error) {
+          logError('[SideEffects] Failed to store wallet address in profile:', error);
+          // Continue anyway - wallet is created, just not stored in profile
+        }
+        
+        return { 
+          success: true,
+          data: {
+            walletAddress: response.data.walletAddress,
+            walletCreated: true
+          }
+        };
+      }
+      
       case AUTH_STEP_TOKEN_ACQUISITION: {
         const phone = flowState.phone || flowState.phoneNumber;
         const email = flowState.email;
         
-        if (!phone) {
+        if (!phone || !email) {
+          console.error('[SideEffects] Missing phone AND/OR email number for token acquisition', { phone, email } );
           return { 
             success: false, 
             errorCode: ErrorCode.VALIDATION_ERROR 
           };
         }
         
+        console.log('[SideEffects] Acquiring tokens for:', { phone, email });
         info('[SideEffects] Acquiring tokens');
         const tokenAcquired = await acquireTokens(phone, email || '');
+        console.log('[SideEffects] Token acquisition result:', tokenAcquired);
         
         if (!tokenAcquired) {
+          console.error('[SideEffects] Token acquisition failed');
           logError('[SideEffects] Token acquisition failed',);
           return { 
             success: false, 
@@ -213,10 +251,14 @@ export async function executeStepSideEffects(
           };
         }
         
+        console.log('[SideEffects] Token acquired successfully, fetching user data...');
+        
         // Fetch user data after token acquisition
         try {
           const userResponse = await userService.getUser();
+          console.log('[SideEffects] User service response:', userResponse);
           if (userResponse && userResponse.statusCode === 200 && userResponse.data) {
+            console.log('[SideEffects] User data fetched successfully');
             return { 
               success: true, 
               data: { 
@@ -226,9 +268,11 @@ export async function executeStepSideEffects(
             };
           }
         } catch (error) {
+          console.error('[SideEffects] Failed to fetch user after token acquisition:', error);
           logError('[SideEffects] Failed to fetch user after token acquisition:', error);
         }
         
+        console.log('[SideEffects] Token acquired but user fetch failed/skipped');
         return { 
           success: true, 
           data: { tokenAcquired: true } 

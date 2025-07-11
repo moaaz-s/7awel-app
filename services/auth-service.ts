@@ -72,10 +72,7 @@ async function sendOtp(
 
   const client = skipAuth ? publicHttpClient : privateHttpClient;
   
-  const response = await client.post<ApiResponse<OtpInitiationResponse>>(
-    `${BASE_PATH}/otp/send`,
-    { medium, value, channel }
-  );
+  const response = await client.sendOtp(medium, value, channel);
 
   if (response.error)
     return handleError(response.error, response.errorCode || ErrorCode.UNKNOWN);

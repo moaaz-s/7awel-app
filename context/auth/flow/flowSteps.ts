@@ -21,6 +21,9 @@ export const AUTH_STEP_TOKEN_ACQUISITION = "token_acquisition";
 /** Waiting for user to complete profile information during signup */
 export const AUTH_STEP_USER_PROFILE_PENDING = "user_profile_pending";
 
+/** Waiting for user wallet creation and initialization (first time only) */
+export const AUTH_STEP_WALLET_CREATION_PENDING = "wallet_creation_pending";
+
 /** Waiting for the user to set up their PIN for the first time */
 export const AUTH_STEP_PIN_SETUP_PENDING = "PIN_SETUP_PENDING";
 
@@ -40,6 +43,7 @@ export type AuthStep =
   | typeof AUTH_STEP_EMAIL_OTP_PENDING
   | typeof AUTH_STEP_TOKEN_ACQUISITION
   | typeof AUTH_STEP_USER_PROFILE_PENDING
+  | typeof AUTH_STEP_WALLET_CREATION_PENDING
   | typeof AUTH_STEP_PIN_SETUP_PENDING
   | typeof AUTH_STEP_PIN_ENTRY_PENDING
   | typeof AUTH_STEP_AUTHENTICATED

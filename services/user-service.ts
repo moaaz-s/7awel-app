@@ -6,8 +6,6 @@ import { ErrorCode } from "@/types/errors";
 import { isApiSuccess } from "@/utils/api-utils";
 import { info, error as logError } from "@/utils/logger";
 
-const BASE_PATH = "/user";
-
 export const userService = {
   /** Fetch user profile and settings */
   async getUser(): Promise<ApiResponse<{ user: User; settings: AppSettings }>> {
@@ -28,10 +26,21 @@ export const userService = {
     if (data.email || data.phone)
       return handleError("Email and phone can be updated through a separate authentication flow", ErrorCode.USER_CANNOT_UPDATE_EMAIL_PHONE);
 
-    // This endpoint can only be called if the user has no information
     try {
+      // Allow wallet address updates separately from profile completion
+      if (data.walletAddress && Object.keys(data).length === 1) {
+        info("[updateUser] Updating wallet address");
+        const response = await privateHttpClient.updateUser(data);
+        if (!isApiSuccess(response)) {
+          logError("[updateUser] Failed to update wallet address");
+          return handleError(response.error || "Failed to update wallet address", ErrorCode.USER_UPDATE_FAILED);
+        }
+        return response;
+      }
+
+      // For profile completion, require minimum fields
       if (!data.firstName || !data.lastName || !data.address) {
-        info("[updateUser] First name, last name, and address are required");
+        info("[updateUser] First name, last name, and address are required for profile completion");
         return handleError("First name, last name, and address are required", ErrorCode.USER_UPDATE_MISSING_INFORMATION);
       }
 

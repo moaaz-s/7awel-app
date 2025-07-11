@@ -68,14 +68,20 @@ async function removeRefreshToken(): Promise<void> {
  */
 async function setTokens(authToken: string, refreshToken: string): Promise<void> {
   if (!authToken || !refreshToken) throw new Error("Both authToken and refreshToken are required");
+  
+  console.log('[token-service] Setting tokens...');
   await setAuthToken(authToken);
   await setRefreshToken(refreshToken);
 
   info('[token-service] Set tokens');
+  console.log('[token-service] Tokens stored in secure storage');
 
   // Propagate to HTTP client
   if (privateHttpClient?.setToken) {
     privateHttpClient.setToken(authToken);
+    console.log('[token-service] Token set on HTTP client');
+  } else {
+    console.warn('[token-service] Private HTTP client not available');
   }
 }
 
@@ -92,20 +98,29 @@ async function clearTokens(): Promise<void> {
 
 async function isTokenValid(authToken: string): Promise<boolean> {
   try {
+    console.log('[token-service] Checking token validity');
     info('[token-service] Checking token validity');
-    if (!authToken) return false;
+    if (!authToken) {
+      console.log('[token-service] No auth token provided');
+      return false;
+    }
 
+    console.log('[token-service] Token found, checking expiration...');
     info('[token-service] Token found');
     const isExpired = isTokenExpired(authToken);
+    console.log('[token-service] Token expired?', isExpired);
 
     // Don't clear tokens here - let the refresh flow handle it
     if (isExpired) {
+      console.log('[token-service] Token expired, will be handled by the refresh flow');
       info('[token-service] Token expired, will be handled by the refresh flow');
       throw new Error('Token expired');
     }
 
+    console.log('[token-service] Token is valid');
     return true;
   } catch (e) {
+    console.error("[token-service] validation failed:", e);
     info("[token-service] validation failed:", e);
     return false;
   }
@@ -180,15 +195,34 @@ export async function initAndValidate(): Promise<boolean> {
 
 export async function acquireTokens(phone: string, email: string): Promise<boolean> {
   try {
-    const { data, error, errorCode } = await authService.acquireToken(phone, email);
-    if (error) throw error;
-    if (!data?.accessToken || !data?.refreshToken) throw new Error("Missing access or refresh token");
+    console.log('[token-service] Acquiring tokens for:', { phone, email });
+    const response = await authService.acquireToken(phone, email);
+    console.log('[token-service] Auth service response:', response);
     
-    info('[token-service] Acquired token:');
+    const { data, error, errorCode } = response;
+    if (error) {
+      console.error('[token-service] Auth service error:', error, errorCode);
+      throw new Error(error);
+    }
+    if (!data?.accessToken || !data?.refreshToken) {
+      console.error('[token-service] Missing tokens in response:', data);
+      throw new Error("Missing access or refresh token");
+    }
+    
+    console.log('[token-service] Tokens acquired successfully:', { 
+      hasAccessToken: !!data.accessToken, 
+      hasRefreshToken: !!data.refreshToken 
+    });
 
     await setTokens(data.accessToken, data.refreshToken);
-    return await isTokenValid(data.accessToken);
+    console.log('[token-service] Tokens stored, validating...');
+    
+    const isValid = await isTokenValid(data.accessToken);
+    console.log('[token-service] Token validation result:', isValid);
+    
+    return isValid;
   } catch (e) {
+    console.error("[token-service] acquire failed:", e);
     logError("[token-service] acquire failed:", e);
     return false;
   }

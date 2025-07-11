@@ -31,6 +31,10 @@ export const userProfileSchema = z.object({
     .optional(),
   gender: z.enum(['male', 'female', 'other'])
     .optional(),
+  walletAddress: z.string()
+    .min(32, 'errors.VALIDATION_WALLET_ADDRESS_INVALID')
+    .max(44, 'errors.VALIDATION_WALLET_ADDRESS_INVALID')
+    .optional(),
   lastUpdated: z.number()
     .positive('errors.VALIDATION_TIMESTAMP_INVALID'),
 });
@@ -64,6 +68,25 @@ export const contactSchema = z.object({
     .positive('errors.VALIDATION_TIMESTAMP_INVALID'),
   hasAccount: z.boolean()
     .optional(),
+  walletAddress: z.string()
+    .min(32, 'errors.VALIDATION_WALLET_ADDRESS_INVALID')
+    .max(44, 'errors.VALIDATION_WALLET_ADDRESS_INVALID')
+    .optional(),
+});
+
+/**
+ * Transaction Direction Schema
+ */
+export const transactionDirectionSchema = z.enum(['incoming', 'outgoing']);
+
+/**
+ * Transaction Contact Schema - Enhanced contact information within transactions
+ */
+export const transactionContactSchema = z.object({
+  name: z.string().optional(),
+  phoneHash: z.string().optional(),
+  phone: z.string().optional(), // Formatted phone number
+  isUnknown: z.boolean().optional(),
 });
 
 /**
@@ -98,24 +121,19 @@ export const transactionSchema = z.object({
     .datetime('errors.VALIDATION_DATETIME_INVALID')
     .optional(),
   
-  // Hashed phone numbers for contact resolution (sent by backend)
+  // Enhanced contact objects (new structure)
+  sender: transactionContactSchema.optional(),
+  recipient: transactionContactSchema.optional(),
+  direction: transactionDirectionSchema.optional(),
+  
+  // Legacy fields for backward compatibility (will be deprecated)
   senderPhoneHash: z.string()
     .optional(),
   recipientPhoneHash: z.string()
     .optional(),
-
   senderName: z.string()
     .optional(),
   recipientName: z.string()
-    .optional(),
-  
-  // Blockchain details (minimal - only what frontend needs)
-  txHash: z.string()
-    .optional(),
-  confirmations: z.number()
-    .nonnegative('errors.VALIDATION_CONFIRMATIONS_INVALID')
-    .optional(),
-  errorMessage: z.string()
     .optional(),
   
   // Local storage metadata
@@ -159,6 +177,9 @@ export const balanceSchema = z.object({
   amount: z.number(),
   fiatValue: z.number().optional(),
   lastUpdated: z.number().positive(),
+  // Merged from StablecoinBalance - these are optional since SOL doesn't have mint but has decimals
+  mint: z.string().optional(), // Solana token mint address (for tokens only)
+  decimals: z.number().int().nonnegative().optional(), // Token decimals (SOL=9, stablecoins=6)
 });
 
 export const syncMetadataSchema = z.object({
@@ -172,6 +193,8 @@ export const syncMetadataSchema = z.object({
 // Type exports
 export type UserProfile = z.infer<typeof userProfileSchema>;
 export type Contact = z.infer<typeof contactSchema>;
+export type TransactionContact = z.infer<typeof transactionContactSchema>;
+export type TransactionDirection = z.infer<typeof transactionDirectionSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type AssetBalance = z.infer<typeof balanceSchema>;
 export type Promotion = z.infer<typeof promotionSchema>;

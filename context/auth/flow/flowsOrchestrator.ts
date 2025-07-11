@@ -5,6 +5,7 @@ import {
   AUTH_STEP_EMAIL_ENTRY_PENDING,
   AUTH_STEP_EMAIL_OTP_PENDING,
   AUTH_STEP_USER_PROFILE_PENDING,
+  AUTH_STEP_WALLET_CREATION_PENDING,
   AUTH_STEP_PIN_SETUP_PENDING,
   AUTH_STEP_PIN_ENTRY_PENDING,
   AUTH_STEP_AUTHENTICATED,
@@ -126,6 +127,22 @@ const userProfileHandler: PureStepHandler = (state, payload) => {
   };
 };
 
+// Pure handler for wallet creation - validates wallet creation and stores wallet data
+const walletCreationHandler: PureStepHandler = (state, payload) => {
+  const { walletAddress } = payload;
+  
+  if (!walletAddress)
+    throw new Error('Wallet address is required after wallet creation.');
+  
+  return {
+    nextData: {
+      ...state,
+      walletAddress,
+      walletCreated: true,
+    }
+  };
+};
+
 // Pure handler for PIN setup
 const pinSetupHandler: PureStepHandler = (state, payload) => {
   return {
@@ -182,151 +199,109 @@ export interface FlowStep {
   sideEffect?: (flowState: AuthFlowState, payload: FlowPayload) => Promise<SideEffectResult>;
 }
 
-/* ------------------------------------------------------------------
- * Flow definitions with handlers attached
- * ------------------------------------------------------------------ */
-
-let SIGNUP_FLOW_STEPS: FlowStep[] = [
-  // Conditional steps for signup flow
-  { 
+// Common step definitions - can be reused across flows
+const COMMON_STEPS: Record<string, FlowStep> = {
+  // Authentication steps (common to all flows)
+  PHONE_ENTRY: { 
     step: AUTH_STEP_PHONE_ENTRY, 
-    condition: ctx => !ctx.tokenValid && !ctx.phoneValidated,
+    condition: (ctx: AuthFlowState) => !ctx.tokenValid && !ctx.phoneValidated,
     handler: phoneEntryHandler,
   },
-  { 
+  PHONE_OTP: { 
     step: AUTH_STEP_PHONE_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && (!ctx.phoneOtpExpires || ctx.phoneOtpExpires > Date.now()),
+    condition: (ctx: AuthFlowState) => !ctx.tokenValid && ctx.phoneValidated && (!ctx.phoneOtpExpires || ctx.phoneOtpExpires > Date.now()),
     handler: phoneOtpHandler,
   },
-  { 
+  EMAIL_ENTRY: { 
     step: AUTH_STEP_EMAIL_ENTRY_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified,
+    condition: (ctx: AuthFlowState) => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified,
     handler: emailEntryHandler,
   },
-  { 
+  EMAIL_OTP: { 
     step: AUTH_STEP_EMAIL_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified && (!ctx.emailOtpExpires || ctx.emailOtpExpires > Date.now()),
+    condition: (ctx: AuthFlowState) => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified && (!ctx.emailOtpExpires || ctx.emailOtpExpires > Date.now()),
     handler: emailOtpHandler,
   },
-  { 
+  TOKEN_ACQUISITION: { 
     step: AUTH_STEP_TOKEN_ACQUISITION, 
-    condition: ctx => ctx.phoneValidated && ctx.emailVerified && !ctx.tokenValid,
+    condition: (ctx: AuthFlowState) => ctx.phoneValidated && ctx.emailVerified && !ctx.tokenValid,
     handler: tokenAcquisitionHandler,
   },
-  { 
-    step: AUTH_STEP_USER_PROFILE_PENDING, 
-    condition: ctx => ctx.tokenValid && !ctx.user,
-    handler: userProfileHandler,
-  },
-  { 
+  // PIN steps
+  PIN_SETUP: { 
     step: AUTH_STEP_PIN_SETUP_PENDING, 
-    condition: ctx => ctx.tokenValid && !ctx.pinSet,
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && !ctx.pinSet,
     handler: pinSetupHandler,
   },
-  { 
+  PIN_ENTRY: { 
+    step: AUTH_STEP_PIN_ENTRY_PENDING, 
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && ctx.pinSet && !ctx.pinVerified,
+    handler: pinEntryHandler,
+  },
+  // Final step
+  AUTHENTICATED: { 
     step: AUTH_STEP_AUTHENTICATED, 
-    condition: ctx => ctx.tokenValid && ctx.pinSet && ctx.pinVerified,
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && ctx.pinSet && ctx.pinVerified,
     handler: authenticatedHandler,
   },
-];
+  // Signup-specific steps
+  USER_PROFILE: { 
+    step: AUTH_STEP_USER_PROFILE_PENDING, 
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && !ctx.user,
+    handler: userProfileHandler,
+  },
+  WALLET_CREATION: { 
+    step: AUTH_STEP_WALLET_CREATION_PENDING, 
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && !!ctx.user && !(ctx.walletCreated || false),
+    handler: walletCreationHandler,
+  },
+};
 
-SIGNUP_FLOW_STEPS = SIGNUP_FLOW_STEPS.map(step => ({
-  ...step,
-  sideEffect: (flowState, payload) => executeStepSideEffects(step.step, flowState, payload),
-}));
+// Add side-effects directly to the steps
+Object.values(COMMON_STEPS).forEach(step => {
+  step.sideEffect = (flowState, payload) => executeStepSideEffects(step.step, flowState, payload);
+});
 
-let SIGNIN_FLOW_STEPS: FlowStep[] = [
-  // Conditional steps for signin flow  
-  { 
-    step: AUTH_STEP_PHONE_ENTRY, 
-    condition: ctx => !ctx.tokenValid && !ctx.phoneValidated,
-    handler: phoneEntryHandler
-  },
-  { 
-    step: AUTH_STEP_PHONE_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && (!ctx.phoneOtpExpires || ctx.phoneOtpExpires > Date.now()),
-    handler: phoneOtpHandler
-  },
-  { 
-    step: AUTH_STEP_EMAIL_ENTRY_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified,
-    handler: emailEntryHandler,
-  },
-  { 
-    step: AUTH_STEP_EMAIL_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified && (!ctx.emailOtpExpires || ctx.emailOtpExpires > Date.now()),
-    handler: emailOtpHandler,
-  },
-  { 
-    step: AUTH_STEP_TOKEN_ACQUISITION, 
-    condition: ctx => ctx.phoneValidated && !ctx.tokenValid,
-    handler: tokenAcquisitionHandler
-  },
+// Optimized flow definitions using common steps
+const SIGNUP_FLOW_STEPS: FlowStep[] = [
+  COMMON_STEPS.PHONE_ENTRY,
+  COMMON_STEPS.PHONE_OTP,
+  COMMON_STEPS.EMAIL_ENTRY,
+  COMMON_STEPS.EMAIL_OTP,
+  COMMON_STEPS.TOKEN_ACQUISITION,
+  COMMON_STEPS.USER_PROFILE,
+  COMMON_STEPS.WALLET_CREATION,
   { 
     step: AUTH_STEP_PIN_SETUP_PENDING, 
-    condition: ctx => ctx.tokenValid && !ctx.pinSet,
-    handler: pinSetupHandler,
+    condition: (ctx: AuthFlowState) => ctx.tokenValid && (ctx.walletCreated || false) && !ctx.pinSet,
+    handler: pinSetupHandler, 
   },
-  { 
-    step: AUTH_STEP_PIN_ENTRY_PENDING, 
-    condition: ctx => ctx.tokenValid && ctx.pinSet && !ctx.pinVerified,
-    handler: pinEntryHandler
-  },
-  { 
-    step: AUTH_STEP_AUTHENTICATED, 
-    condition: ctx => ctx.tokenValid && ctx.pinSet && ctx.pinVerified,
-    handler: authenticatedHandler
-  },
+  COMMON_STEPS.AUTHENTICATED,
 ];
 
-SIGNIN_FLOW_STEPS = SIGNIN_FLOW_STEPS.map(step => ({
-  ...step,
-  sideEffect: (flowState, payload) => executeStepSideEffects(step.step, flowState, payload),
-}));
-
-let FORGOT_PIN_FLOW_STEPS: FlowStep[] = [
-  // Conditional steps for forgot PIN flow
-  { 
-    step: AUTH_STEP_PHONE_ENTRY, 
-    condition: ctx => !ctx.tokenValid && !ctx.phoneValidated,
-    handler: phoneEntryHandler
-  },
-  { 
-    step: AUTH_STEP_PHONE_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && (!ctx.phoneOtpExpires || ctx.phoneOtpExpires > Date.now()),
-    handler: phoneOtpHandler
-  },
-  { 
-    step: AUTH_STEP_EMAIL_ENTRY_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified,
-    handler: emailEntryHandler
-  },
-  { 
-    step: AUTH_STEP_EMAIL_OTP_PENDING, 
-    condition: ctx => !ctx.tokenValid && ctx.phoneValidated && !ctx.emailVerified && (!ctx.emailOtpExpires || ctx.emailOtpExpires > Date.now()),
-    handler: emailOtpHandler
-  },
-  { 
-    step: AUTH_STEP_TOKEN_ACQUISITION, 
-    condition: ctx => ctx.phoneValidated && ctx.emailVerified && !ctx.tokenValid,
-    handler: tokenAcquisitionHandler
-  },
-  { 
-    step: AUTH_STEP_PIN_SETUP_PENDING, 
-    condition: ctx => ctx.tokenValid,
-    handler: pinSetupHandler
-  },
-  { 
-    step: AUTH_STEP_AUTHENTICATED, 
-    condition: ctx => ctx.tokenValid && ctx.pinSet && ctx.pinVerified,
-    handler: authenticatedHandler
-  },
+const SIGNIN_FLOW_STEPS: FlowStep[] = [
+  COMMON_STEPS.PHONE_ENTRY,
+  COMMON_STEPS.PHONE_OTP,
+  COMMON_STEPS.EMAIL_ENTRY,
+  COMMON_STEPS.EMAIL_OTP,
+  COMMON_STEPS.TOKEN_ACQUISITION, // Use COMMON_STEPS to get side effects
+  COMMON_STEPS.USER_PROFILE,
+  COMMON_STEPS.WALLET_CREATION,
+  COMMON_STEPS.PIN_SETUP,
+  COMMON_STEPS.PIN_ENTRY,
+  COMMON_STEPS.AUTHENTICATED,
 ];
 
-FORGOT_PIN_FLOW_STEPS = FORGOT_PIN_FLOW_STEPS.map(step => ({
-  ...step,
-  sideEffect: (flowState, payload) => executeStepSideEffects(step.step, flowState, payload),
-}));
+const FORGOT_PIN_FLOW_STEPS: FlowStep[] = [
+  COMMON_STEPS.PHONE_ENTRY,
+  COMMON_STEPS.PHONE_OTP,
+  COMMON_STEPS.EMAIL_ENTRY,
+  COMMON_STEPS.EMAIL_OTP,
+  COMMON_STEPS.TOKEN_ACQUISITION,
+  COMMON_STEPS.PIN_SETUP, // Resetting PIN
+  COMMON_STEPS.AUTHENTICATED,
+];
+
 
 /* ------------------------------------------------------------------
  * Flow helpers
@@ -421,6 +396,9 @@ export async function buildFlowState(
     }
   }
   
+  // Check if user already has a wallet (for signin flows)
+  const hasExistingWallet = Boolean(user?.walletAddress || mergedState.user?.walletAddress);
+  
   // Return complete state with computed values
   return {
     // Merge with existing and computed values
@@ -431,7 +409,8 @@ export async function buildFlowState(
     sessionActive,
     pinSet: pinSetFlag || mergedState.pinSet || false,
     pinVerified: mergedState.pinVerified || false,
-    user: user || mergedState.user || null
+    user: user || mergedState.user || null,
+    walletCreated: hasExistingWallet || mergedState.walletCreated || false
   } as AuthFlowState;
 }
 
@@ -502,7 +481,8 @@ export function getInitialFlowState(): AuthFlowState {
     registrationComplete: false,
     tokenExists: false,
     tokenValid: false,
-    sessionActive: false
+    sessionActive: false,
+    walletCreated: false, // Add wallet creation flag
   };
 }
 

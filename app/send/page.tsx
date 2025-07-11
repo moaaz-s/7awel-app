@@ -65,7 +65,7 @@ export default function SendMoneyPage() {
               )}
 
               <ContentCard 
-                title={searchQuery ? t("transaction.searchResults") : t("transaction.recent")}
+                title={searchQuery ? t("transaction.searchResults") : t("contact.recentContacts")}
                 elevated={true} 
                 padding="sm">
                 <div>

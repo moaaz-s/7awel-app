@@ -2,6 +2,8 @@
 import type { Contact as ContactSchema, UserProfile as UserSchema, Transaction as TransactionSchema, AssetBalance as AssetBalanceSchema, Promotion as PromotionSchema, LogEvent as LogEventSchema } from "@/platform/validators/schemas-zod";
 import { transactionSchema } from "@/platform/validators/schemas-zod";
 import { ErrorCode } from './errors';
+import type { IProvider } from "@web3auth/base";
+import type { Transaction as SolanaTransaction } from "@solana/web3.js";
 
 // Domain model aliases (canonical types come from Zod schemas)
 export type User = UserSchema;
@@ -192,4 +194,56 @@ export interface CashOutRequest {
   amount: number
   currency: string
   method: string
+}
+
+// ----- Web3Auth & Blockchain Types -----
+
+// Web3Auth-specific wallet info using unified AssetBalance type
+export interface CustomWalletInfo {
+  address: string;
+  isConnected: boolean;
+  provider: IProvider | null;
+  stablecoinBalances: AssetBalance[]; // Using unified AssetBalance
+  solBalance: AssetBalance;
+}
+
+export interface StablecoinTransferParams {
+  toAddress: string;
+  amount: number;
+  tokenMint: string; // Which stablecoin to send
+  memo?: string;
+  // Could extend with existing Contact type
+  recipient?: Contact;
+}
+
+// Transaction breakdown for user validation - generated from instruction analysis
+// This object is an extract of the raw Solana transaction, and should be used in the backend to validate the transaction.
+export interface TransactionBreakdown { 
+  // Core transaction info
+  type: 'stablecoin_transfer';
+  fromAddress: string;
+  toAddress: string;
+  amount: number;
+  assetSymbol: string;
+  tokenMint: string;
+  
+  // User display info
+  decimals: number;
+  usdValue: number;
+  memo?: string;
+  
+  // Blockchain-specific info
+  willCreateTokenAccount: boolean;
+  estimatedFee: number;
+  
+  // Timestamps for consistency
+  createdAt: string;
+}
+
+// Transaction preparation result
+export interface PreparedTransaction {
+  transaction: SolanaTransaction; // Solana Transaction object
+  breakdown: TransactionBreakdown;
+  isValid: boolean;
+  validationErrors: string[];
 }

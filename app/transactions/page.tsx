@@ -10,6 +10,7 @@ import { useLanguage } from "@/context/LanguageContext"
 import { ContentCard } from "@/components/ui/cards/content-card"
 import { transactionService } from "@/services/transaction-service"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { useDateFormatter } from "@/utils/date-formatter"
 
 // Interface for grouped transactions
 interface TransactionGroup {
@@ -38,34 +39,42 @@ function TransactionGroupComponent({ group }: { group: TransactionGroup }) {
 export default function TransactionsPage() {
   const { transactions, isLoadingTransactions } = useData()
   const { t, language } = useLanguage()
+  const { formatForGrouping } = useDateFormatter()
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
 
   // Filter transactions based on search query
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => tx.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    if (!searchQuery) return transactions;
+    
+    const query = searchQuery.toLowerCase();
+    return transactions.filter((tx) => {
+      // Search in transaction reference
+      if (tx.reference?.toLowerCase().includes(query)) return true;
+      
+      // Search in legacy contact names
+      if (tx.senderName?.toLowerCase().includes(query)) return true;
+      if (tx.recipientName?.toLowerCase().includes(query)) return true;
+      
+      // Search in enhanced contact structure
+      if (tx.sender?.name?.toLowerCase().includes(query)) return true;
+      if (tx.recipient?.name?.toLowerCase().includes(query)) return true;
+      
+      // Search in phone numbers
+      if (tx.sender?.phone?.includes(searchQuery)) return true;
+      if (tx.recipient?.phone?.includes(searchQuery)) return true;
+      
+      return false;
+    });
   }, [transactions, searchQuery])
 
-  // Group transactions by relative date for display
+  // Group transactions by relative date for display using centralized formatter
   const groupedTransactions = useMemo(() => {
     return transactionService.groupTransactionsByDate(
       filteredTransactions,
-      (date) => {
-        const dateObj = typeof date === "string" ? new Date(date) : date;
-        const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-        const isSameDay = (d1: Date, d2: Date) =>
-          d1.toDateString() === d2.toDateString();
-        if (isSameDay(dateObj, today)) return t("transaction.today_label");
-        if (isSameDay(dateObj, yesterday)) return t("transaction.yesterday_label");
-        return dateObj.toLocaleDateString(language === "ar" ? "ar" : "en-US", {
-          day: "numeric",
-          month: "short",
-        });
-      }
+      formatForGrouping
     );
-  }, [filteredTransactions, t, language]);
+  }, [filteredTransactions, formatForGrouping]);
 
   return (
     <PageContainer title={t("transaction.transactions")} backHref="/home">

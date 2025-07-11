@@ -143,10 +143,14 @@ export class ContactHelpers {
           name: contact.name,
           phone: normalized,
           phoneHash,
-          isFavorite: false,
+          initial: contact.name.charAt(0).toUpperCase(),
+          // LocalContact specific fields
           syncedAt: Date.now(),
+          isFavorite: false,
           hasAccount,
-          initial: contact.name.charAt(0).toUpperCase()
+          lastInteraction: undefined,
+          avatar: undefined,
+          linkedUserId: undefined,
         };
         
         // Validate contact data

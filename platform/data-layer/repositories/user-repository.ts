@@ -7,9 +7,8 @@ import { userProfileSchema } from "@/platform/validators/schemas-zod";
 import { StorageManagerV2 as StorageManager } from '../../../platform/storage/storage-manager-v2';
 import { ProfileHelpers } from '../../local-db/local-db-common';
 import { userService } from '@/services/user-service';
-import { ApiResponse } from '@/types';
 import { error as logError, info } from '@/utils/logger';
-import { USER_REPOSITORY_TTL_MS } from '@/constants/db';
+import { APP_CONFIG } from '@/constants/app-config';
 import { isApiSuccess } from '@/utils/api-utils';
 
 export class UserRepository extends BaseRepository<'userProfile'> {
@@ -64,8 +63,22 @@ export class UserRepository extends BaseRepository<'userProfile'> {
       // Get current profile within transaction
       const currentProfile = await tx.get('userProfile', 'user');
       
-      // Guard: prevent overwriting if profile already complete
+      // Guard: prevent overwriting if profile already complete (but allow wallet address updates)
       if (currentProfile && currentProfile.firstName && currentProfile.lastName && currentProfile.address) {
+        // TODO: would this case even happen?
+        // Allow wallet address updates even for completed profiles
+        if (profile.walletAddress && profile.walletAddress !== currentProfile.walletAddress) {
+          const updatedProfile = userProfileSchema.parse({
+            ...currentProfile,
+            walletAddress: profile.walletAddress,
+            lastUpdated: Date.now(),
+          });
+          
+          await tx.set('userProfile', updatedProfile);
+          await this.queueForSync('update', updatedProfile);
+          return updatedProfile;
+        }
+        
         throw new Error("Profile already completed – updates are disabled.");
       }
 
@@ -116,7 +129,7 @@ export class UserRepository extends BaseRepository<'userProfile'> {
    */
   private async shouldRefreshFromRemote(lastUpdated?: number): Promise<boolean> {
     if (!lastUpdated) return true;
-    return Date.now() - lastUpdated > USER_REPOSITORY_TTL_MS;
+    return Date.now() - lastUpdated > APP_CONFIG.DB.USER_REPOSITORY_TTL_MS;
   }
   
   /**

@@ -6,6 +6,10 @@
  */
 import { info, warn, error as logError } from '@/utils/logger';
 
+// fill with default values
+const TOKEN_EXPIRY_BUFFER_SECONDS = 60;
+const DEFAULT_TOKEN_DURATION_SECONDS = 60 * 60 * 24;
+
 /**
  * Basic interface for JWT payload structure
  */
@@ -53,7 +57,7 @@ export function decodeToken(token: string): JwtPayload | null {
  * @param bufferSeconds Time buffer in seconds to consider a token as expired before actual expiration
  * @returns boolean indicating if token is expired or invalid
  */
-export function isTokenExpired(token: string | null, bufferSeconds = 300): boolean {
+export function isTokenExpired(token: string | null, bufferSeconds = TOKEN_EXPIRY_BUFFER_SECONDS): boolean {
   if (!token) return true;
   
   try {
@@ -112,7 +116,7 @@ export function getTokenInfo(token: string | null): {
  * @param expiresInSeconds Token expiration time in seconds (default: 24 hours)
  * @returns JWT token string with header, payload, and signature parts
  */
-export function createToken(payload: Partial<JwtPayload>, expiresInSeconds = 86400): string {
+export function createToken(payload: Partial<JwtPayload>, expiresInSeconds = DEFAULT_TOKEN_DURATION_SECONDS): string {
   try {
     // Current timestamp in seconds
     const issuedAt = Math.floor(Date.now() / 1000);

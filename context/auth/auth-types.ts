@@ -84,6 +84,10 @@ export interface AuthFlowState {
   pinVerified: boolean;
   registrationComplete: boolean;
   
+  // ===== Wallet States =====
+  walletCreated?: boolean;
+  walletAddress?: string;
+  
   // ===== Computed States =====
   tokenValid: boolean;
   tokenExists: boolean;
@@ -123,6 +127,9 @@ export interface FlowPayload {
   gender?: string;
 
   user?: User;
+
+  // Wallet creation
+  walletAddress?: string;
 
   pin?: string; // TODO: Do we really ues this?
   step?: AuthStep;

@@ -16,45 +16,14 @@ export class TransactionRepository extends BaseRepository<'recentTransactions'> 
   }
 
   /** 
-   * Convert LocalTransaction to core Transaction
-   * Validates data integrity and throws errors for missing required fields
-   * instead of using potentially dangerous default values
+   * Convert LocalTransaction to core Transaction using Zod validation
    */
   private toCore(tx: LocalTx): Transaction {
-    // Validate required fields instead of defaulting
-    if (!tx.id) {
-      throw new Error(`Invalid LocalTransaction: missing required field 'id'`);
-    }
-    
-    if (!tx.createdAt) {
-      throw new Error(`Invalid LocalTransaction: missing required field 'createdAt' for transaction ${tx.id}`);
-    }
-    
-    if (!tx.status) {
-      throw new Error(`Invalid LocalTransaction: missing required field 'status' for transaction ${tx.id}`);
-    }
-    
-    if (!tx.type) {
-      throw new Error(`Invalid LocalTransaction: missing required field 'type' for transaction ${tx.id}`);
-    }
-    
-    if (typeof tx.amount !== 'number' || tx.amount < 0) {
-      throw new Error(`Invalid LocalTransaction: invalid amount '${tx.amount}' for transaction ${tx.id}`);
-    }
-
-    // Create the core transaction with proper validation
-    const coreTransaction: Transaction = {
-      // Copy all fields from LocalTransaction (it extends Transaction)
-      ...tx,
-      
-      // Ensure fee is a number (required by schema)
-      fee: typeof tx.fee === 'number' ? tx.fee : 0,
-    };
-
-    // Validate the result against the schema
-    const validationResult = transactionSchema.safeParse(coreTransaction);
+    // Let Zod handle validation and throw descriptive errors
+    const validationResult = transactionSchema.safeParse(tx);
     if (!validationResult.success) {
-      throw new Error(`Failed to convert LocalTransaction to Transaction: ${validationResult.error.message}`);
+      console.error(`Invalid LocalTransaction data:`, validationResult.error.errors);
+      throw new Error(`Invalid LocalTransaction: ${validationResult.error.errors.map(e => `${e.path.join('.')} ${e.message}`).join(', ')}`);
     }
 
     return validationResult.data;
@@ -78,8 +47,8 @@ export class TransactionRepository extends BaseRepository<'recentTransactions'> 
   }
 
   /** Fetch remote list then cache */
-  async listRemote(limit = 20, cursor?: string): Promise<Paginated<Transaction>> {
-    const response = await transactionService.listTransactions(undefined, { limit, cursor });
+  async listRemote(limit = 20, cursor?: string, currentUserId?: string): Promise<Paginated<Transaction>> {
+    const response = await transactionService.listTransactions(undefined, { limit, cursor }, currentUserId);
     if (!isApiSuccess(response) || !response.data) {
       throw new Error(response.error || ErrorCode.TRANSACTION_LIST_FAILED);
     }
@@ -90,13 +59,13 @@ export class TransactionRepository extends BaseRepository<'recentTransactions'> 
     return response.data;
   }
 
-  async getTransaction(id: string): Promise<Transaction | null> {
+  async getTransaction(id: string, currentUserId?: string): Promise<Transaction | null> {
     // 1. Try local cache first
     const local = (await this.storageManager.local.get('recentTransactions', id)) as LocalTx | undefined;
     if (local) return this.toCore(local)
 
     // 2. Fetch from remote service
-    const response = await transactionService.getTransactionById(id);
+    const response = await transactionService.getTransactionById(id, currentUserId);
     
     if (!isApiSuccess(response) || !response.data) {
       return null; // Not found or request failed
